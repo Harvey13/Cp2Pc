@@ -1,5 +1,5 @@
 {
-  "name": "cp2pcmobile",
+  "name": "cp2pc-mobile",
   "main": "expo-router/entry",
   "version": "1.0.0",
   "scripts": {

@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Cp2Pc Mobile",
-    "slug": "cp2pcmobile",
+    "name": "Cp2Pc",
+    "slug": "mobile",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
