@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'">
+    <title>Nouveau Mapping - Cp2Pc</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        .mapping-dialog {
+            padding: 20px;
+            max-width: 500px;
+            margin: 0 auto;
+        }
+
+        .mapping-header {
+            margin-bottom: 20px;
+        }
+
+        .mapping-header h2 {
+            margin: 0;
+            color: #333;
+        }
+
+        .mapping-form {
+            background: #fff;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 500;
+        }
+
+        .path-input-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .path-input {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            background: #f9f9f9;
+            cursor: default;
+        }
+
+        .browse-btn {
+            padding: 8px 15px;
+            background: #2196F3;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .browse-btn:hover {
+            background: #1976D2;
+        }
+
+        .browse-btn svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        .button-group {
+            margin-top: 20px;
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        .btn {
+            padding: 8px 20px;
+            border: none;
+            border-radius: 4px;
+            font-weight: 500;
+            cursor: pointer;
+        }
+
+        .btn-cancel {
+            background: #f5f5f5;
+            color: #333;
+        }
+
+        .btn-cancel:hover {
+            background: #e0e0e0;
+        }
+
+        .btn-save {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .btn-save:hover {
+            background: #388E3C;
+        }
+    </style>
+</head>
+<body>
+    <div class="mapping-dialog">
+        <div class="mapping-header">
+            <h2>Nouveau Mapping</h2>
+        </div>
+        
+        <div class="mapping-form">
+            <div class="form-group">
+                <label>Titre du mapping</label>
+                <input type="text" id="mappingTitle" class="path-input" value="Nouveau mapping">
+            </div>
+
+            <div class="form-group">
+                <label>Dossier source (Mobile)</label>
+                <div class="path-input-group">
+                    <input type="text" id="sourcePath" class="path-input" readonly 
+                           value="Sélectionner un dossier sur le mobile">
+                    <button id="browseSourceBtn" class="browse-btn">
+                        <svg viewBox="0 0 24 24" width="16" height="16">
+                            <path fill="currentColor" d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z"/>
+                        </svg>
+                        Parcourir
+                    </button>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Dossier destination (PC)</label>
+                <div class="path-input-group">
+                    <input type="text" id="destPath" class="path-input" readonly 
+                           value="Sélectionner un dossier sur le PC">
+                    <button id="browseDestBtn" class="browse-btn">
+                        <svg viewBox="0 0 24 24" width="16" height="16">
+                            <path fill="currentColor" d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z"/>
+                        </svg>
+                        Parcourir
+                    </button>
+                </div>
+            </div>
+
+            <div class="button-group">
+                <button id="cancelBtn" class="btn btn-cancel">Annuler</button>
+                <button id="saveBtn" class="btn btn-save">Enregistrer</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/i18n.js"></script>
+    <script src="js/mapping.js"></script>
+</body>
+</html>

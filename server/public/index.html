@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:">
+    <title>Cp2Pc - Transfert de fichiers</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 4px;
+        }
+
+        .status-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .status-led {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        .status-led.connected { 
+            background: #4CAF50;
+            box-shadow: 0 0 8px #4CAF50;
+        }
+        
+        .status-led.waiting { 
+            background: #FFA000;
+            box-shadow: 0 0 8px #FFA000;
+        }
+
+        .status-text {
+            font-size: 14px;
+            color: #666;
+        }
+
+        .config-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 8px;
+            color: #666;
+            font-size: 1.2em;
+            transition: color 0.3s;
+        }
+        
+        .config-btn:hover {
+            color: #333;
+        }
+
+        .main-content {
+            margin-top: 20px;
+        }
+
+        /* Style pour l'état sans mapping */
+        .no-mapping {
+            text-align: center;
+            padding: 40px;
+            border: 2px dashed #ddd;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+
+        .no-mapping i {
+            font-size: 48px;
+            color: #666;
+            margin-bottom: 20px;
+        }
+
+        .no-mapping-text {
+            font-size: 18px;
+            color: #666;
+            margin-bottom: 20px;
+        }
+
+        /* Style pour la liste des mappings */
+        .mappings-container {
+            display: none; /* Caché par défaut, affiché quand il y a des mappings */
+        }
+
+        .mapping-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .start-copy-btn {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .add-mapping-btn {
+            background: #2196F3;
+            color: white;
+            border: none;
+            padding: 8px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .mapping-item {
+            background: #f8f9fa;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 15px;
+            margin-bottom: 10px;
+        }
+
+        .mapping-title {
+            flex-grow: 1;
+            font-weight: bold;
+        }
+
+        .mapping-title-input {
+            flex-grow: 1;
+            padding: 4px 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .mapping-delete {
+            color: #dc3545;
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 4px;
+        }
+
+        .mapping-edit {
+            color: #666;
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 4px;
+        }
+
+        .mapping-paths {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .path-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .path-label {
+            width: 80px;
+            color: #666;
+            font-size: 14px;
+        }
+
+        .path-value {
+            flex-grow: 1;
+            padding: 6px 10px;
+            background: #fff;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            color: #333;
+        }
+
+        .path-button {
+            background: #2196F3;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        .path-button:hover {
+            background: #1976D2;
+        }
+
+        .path-button.mobile {
+            background: #FF5722;
+        }
+
+        .path-button.mobile:hover {
+            background: #F4511E;
+        }
+
+        .mapping-progress {
+            width: 100%;
+            height: 4px;
+            background: #ddd;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: #4CAF50;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        .large-add-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: none;
+            border: 2px dashed #2196F3;
+            border-radius: 8px;
+            padding: 40px;
+            width: 100%;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .large-add-btn:hover {
+            background: #f0f7ff;
+        }
+
+        .large-add-btn i {
+            font-size: 48px;
+            color: #2196F3;
+            margin-bottom: 16px;
+        }
+
+        .large-add-btn span {
+            color: #2196F3;
+            font-size: 18px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="status-container">
+                <div id="connectionStatus" class="status-led waiting"></div>
+                <span id="statusText">En attente d'un mobile</span>
+            </div>
+            <button id="configBtn" class="config-btn">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="16" height="16">
+                    <path fill="currentColor" d="M487.4 315.7l-42.6-24.6c4.3-23.2 4.3-47 0-70.2l42.6-24.6c4.9-2.8 7.1-8.6 5.5-14-11.1-35.6-30-67.8-54.7-94.6-3.8-4.1-10-5.1-14.8-2.3L380.8 110c-17.9-15.4-38.5-27.3-60.8-35.1V25.8c0-5.6-3.9-10.5-9.4-11.7-36.7-8.2-74.3-7.8-109.2 0-5.5 1.2-9.4 6.1-9.4 11.7V75c-22.2 7.9-42.8 19.8-60.8 35.1L88.7 85.5c-4.9-2.8-11-1.9-14.8 2.3-24.7 26.7-43.6 58.9-54.7 94.6-1.7 5.4.6 11.2 5.5 14L67.3 221c-4.3 23.2-4.3 47 0 70.2l-42.6 24.6c-4.9 2.8-7.1 8.6-5.5 14 11.1 35.6 30 67.8 54.7 94.6 3.8 4.1 10 5.1 14.8 2.3l42.6-24.6c17.9 15.4 38.5 27.3 60.8 35.1v49.2c0 5.6 3.9 10.5 9.4 11.7 36.7 8.2 74.3 7.8 109.2 0 5.5-1.2 9.4-6.1 9.4-11.7v-49.2c22.2-7.9 42.8-19.8 60.8-35.1l42.6 24.6c4.9 2.8 11 1.9 14.8-2.3 24.7-26.7 43.6-58.9 54.7-94.6 1.5-5.5-.7-11.3-5.6-14.1zM256 336c-44.1 0-80-35.9-80-80s35.9-80 80-80 80 35.9 80 80-35.9 80-80 80z"/>
+                </svg>
+            </button>
+        </header>
+
+        <div class="main-content">
+            <!-- État sans mapping -->
+            <div id="noMappingState" class="no-mapping">
+                <button class="large-add-btn" id="firstMappingBtn">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="48" height="48">
+                        <path fill="currentColor" d="M256 0c-141.16 0-256 114.84-256 256s114.84 256 256 256 256-114.84 256-256-114.84-256-256-256zm0 448c-70.69 0-128-57.31-128-128s57.31-128 128-128 128 57.31 128 128-57.31 128-128 128z"/>
+                    </svg>
+                    <span>Ajouter un nouveau mapping</span>
+                </button>
+            </div>
+
+            <!-- État avec mappings -->
+            <div id="withMappingsState" class="mappings-container">
+                <div class="mapping-header">
+                    <button class="start-copy-btn">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="16" height="16">
+                            <path fill="currentColor" d="M256 8c-136.96 0-248 111.04-248 248s111.04 248 248 248 248-111.04 248-248-111.04-248-248-248zm0 448c-70.69 0-128-57.31-128-128s57.31-128 128-128 128 57.31 128 128-57.31 128-128 128z"/>
+                        </svg>
+                        Lancer la copie
+                    </button>
+                    <button class="add-mapping-btn">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="16" height="16">
+                            <path fill="currentColor" d="M256 0c-141.16 0-256 114.84-256 256s114.84 256 256 256 256-114.84 256-256-114.84-256-256-256zm0 448c-70.69 0-128-57.31-128-128s57.31-128 128-128 128 57.31 128 128-57.31 128-128 128z"/>
+                        </svg>
+                    </button>
+                </div>
+
+                <div id="mappingsList">
+                    <!-- Template pour un nouveau mapping -->
+                    <template id="mappingTemplate">
+                        <div class="mapping-item">
+                            <div class="mapping-header">
+                                <button class="mapping-delete">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="16" height="16">
+                                        <path fill="currentColor" d="M256 8c-136.96 0-248 111.04-248 248s111.04 248 248 248 248-111.04 248-248-111.04-248-248-248zm0 448c-70.69 0-128-57.31-128-128s57.31-128 128-128 128 57.31 128 128-57.31 128-128 128z"/>
+                                    </svg>
+                                </button>
+                                <div class="mapping-title">Nouveau mapping</div>
+                                <button class="mapping-edit">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="16" height="16">
+                                        <path fill="currentColor" d="M384 224c0 8.84-7.16 16-16 16h-64c-8.84 0-16-7.16-16-16v-64c0-8.84 7.16-16 16-16h64c8.84 0 16 7.16 16 16zm-128 96c-26.51 0-48-21.49-48-48s21.49-48 48-48 48 21.49 48 48-21.49 48-48 48zm-128-192c-8.84 0-16 7.16-16 16v64c0 8.84 7.16 16 16 16h64c8.84 0 16-7.16 16-16v-64c0-8.84-7.16-16-16-16h-64z"/>
+                                    </svg>
+                                </button>
+                            </div>
+                            <div class="mapping-paths">
+                                <div class="path-row">
+                                    <span class="path-label">Source:</span>
+                                    <span class="path-value">Sélectionner un dossier sur le mobile</span>
+                                    <button class="path-button mobile">
+                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="16" height="16">
+                                            <path fill="currentColor" d="M256 0c-141.16 0-256 114.84-256 256s114.84 256 256 256 256-114.84 256-256-114.84-256-256-256zm0 448c-70.69 0-128-57.31-128-128s57.31-128 128-128 128 57.31 128 128-57.31 128-128 128z"/>
+                                        </svg>
+                                    </button>
+                                </div>
+                                <div class="path-row">
+                                    <span class="path-label">Destination:</span>
+                                    <span class="path-value">Sélectionner un dossier sur le PC</span>
+                                    <button class="path-button">
+                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="16" height="16">
+                                            <path fill="currentColor" d="M256 0c-141.16 0-256 114.84-256 256s114.84 256 256 256 256-114.84 256-256-114.84-256-256-256zm0 448c-70.69 0-128-57.31-128-128s57.31-128 128-128 128 57.31 128 128-57.31 128-128 128z"/>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+            <div class="mappings-section">
+                <div class="section-header">
+                    <h2>Mappings</h2>
+                    <button id="addMappingBtn" class="icon-button">
+                        <svg viewBox="0 0 24 24" width="24" height="24">
+                            <path fill="currentColor" d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+                        </svg>
+                    </button>
+                </div>
+                <div id="mappingsContainer" class="mappings-container">
+                    <!-- Les mappings seront ajoutés ici dynamiquement -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/socket.io.js"></script>
+    <script src="js/i18n.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>

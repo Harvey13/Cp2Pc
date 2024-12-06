@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'">
+    <title>Configuration - Cp2Pc</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        .config-container {
+            padding: 20px;
+            max-width: 400px;
+            margin: 0 auto;
+        }
+
+        .config-section {
+            margin-bottom: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        .language-btn {
+            display: flex;
+            align-items: center;
+            padding: 8px 15px;
+            margin: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background: white;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .language-btn.active {
+            background: #e8f5e9;
+            border-color: #4CAF50;
+        }
+
+        .language-btn:hover {
+            background: #f5f5f5;
+        }
+
+        .language-icon {
+            width: 24px;
+            height: 24px;
+            margin-right: 10px;
+        }
+
+        .button-group {
+            margin-top: 20px;
+            text-align: right;
+        }
+
+        .btn {
+            padding: 8px 20px;
+            margin-left: 10px;
+            border: none;
+            border-radius: 4px;
+            font-weight: 500;
+            cursor: pointer;
+        }
+
+        .primary {
+            background: #4CAF50;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="config-container">
+        <div class="config-section">
+            <h2 data-i18n="language">Langue de l'interface</h2>
+            <div class="language-buttons">
+                <button class="language-btn" data-lang="fr">
+                    <svg class="language-icon" viewBox="0 0 640 480">
+                        <path fill="#fff" d="M0 0h640v480H0z"/>
+                        <path fill="#002654" d="M0 0h213.3v480H0z"/>
+                        <path fill="#ce1126" d="M426.7 0H640v480H426.7z"/>
+                    </svg>
+                    Français
+                </button>
+                <button class="language-btn" data-lang="en">
+                    <svg class="language-icon" viewBox="0 0 640 480">
+                        <path fill="#012169" d="M0 0h640v480H0z"/>
+                        <path fill="#FFF" d="M75 0l244 181L562 0h78v62L400 241l240 178v61h-80L320 301 81 480H0v-60l239-178L0 64V0h75z"/>
+                        <path fill="#C8102E" d="M424 281l216 159v40L369 281h55zm-184 20l6 35L54 480H0l240-179zM640 0v3L391 191l2-44L590 0h50zM0 0l239 176h-60L0 42V0z"/>
+                        <path fill="#FFF" d="M241 0v480h160V0H241zM0 160v160h640V160H0z"/>
+                        <path fill="#C8102E" d="M0 193v96h640v-96H0zM273 0v480h96V0h-96z"/>
+                    </svg>
+                    English
+                </button>
+            </div>
+        </div>
+        
+        <div class="config-section">
+            <h2 data-i18n="maxFiles">Nombre maximum de fichiers</h2>
+            <input type="number" id="maxFiles" min="1" max="10000" value="1000">
+        </div>
+        
+        <div class="button-group">
+            <button id="cancelBtn" class="btn">Annuler</button>
+            <button id="saveBtn" class="btn primary">Enregistrer</button>
+        </div>
+    </div>
+
+    <script src="js/i18n.js"></script>
+    <script src="js/config.js"></script>
+</body>
+</html>

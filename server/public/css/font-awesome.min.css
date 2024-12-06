@@ -1,0 +1,22 @@
+/* Font Awesome 6.0.0 minified CSS */
+@font-face {
+  font-family: "Font Awesome 6 Free";
+  font-style: normal;
+  font-weight: 900;
+  src: url("../webfonts/fa-solid-900.woff2") format("woff2");
+}
+
+.fa,
+.fas {
+  font-family: "Font Awesome 6 Free";
+  font-weight: 900;
+}
+
+/* Icônes essentielles */
+.fa-check:before { content: "\f00c"; }
+.fa-times:before { content: "\f00d"; }
+.fa-sync:before { content: "\f021"; }
+.fa-clock:before { content: "\f017"; }
+.fa-exclamation-circle:before { content: "\f06a"; }
+.fa-spinner:before { content: "\f110"; }
+.fa-circle:before { content: "\f111"; }

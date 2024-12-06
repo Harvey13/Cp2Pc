@@ -1,0 +1,42 @@
+{
+  "name": "cp2pc-server",
+  "version": "1.0.0",
+  "description": "Serveur de synchronisation Cp2Pc",
+  "main": "main.js",
+  "scripts": {
+    "start": "cross-env NODE_ENV=production electron .",
+    "dev": "cross-env NODE_ENV=development electron .",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "electron-builder",
+    "pack": "electron-builder --dir"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@fortawesome/fontawesome-free": "^6.0.0",
+    "@react-native-community/netinfo": "^11.4.1",
+    "bonjour": "^3.5.0",
+    "electron": "^33.2.1",
+    "electron-store": "^8.1.0",
+    "express": "^4.21.1",
+    "multer": "^1.4.5-lts.1",
+    "socket.io": "^4.7.4",
+    "socket.io-client": "^4.8.1",
+    "webdav-server": "^2.6.2",
+    "winston": "^3.11.0"
+  },
+  "devDependencies": {
+    "cross-env": "^7.0.3",
+    "electron-builder": "^24.9.1"
+  },
+  "build": {
+    "appId": "com.cp2pc.app",
+    "productName": "Cp2Pc",
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": "nsis"
+    }
+  }
+}
