@@ -21,8 +21,8 @@ const CONFIG = {
 
 const MESSAGES = {
     SCANNING: 'Recherche du serveur...',
-    SERVER_FOUND: (name, ip) => `Connecté à ${name} (${ip})`,
-    NO_SERVER: 'Aucun serveur trouvé. Nouvelle tentative dans 3s...',
+    SERVER_FOUND: (name, ip) => `Connecté à ${name}\n(${ip})`,
+    NO_SERVER: 'Aucun serveur trouvé.\nNouvelle tentative dans 3s...',
     ERROR: 'Erreur réseau. Nouvelle tentative dans 3s...'
 };
 
@@ -93,29 +93,32 @@ class ServerDiscovery {
     async scanNetwork() {
         try {
             // Vérifier la connexion réseau
+            console.log('[Discovery] Checking network connection...');
             const networkState = await Network.getNetworkStateAsync();
             if (!networkState.isConnected || networkState.type !== Network.NetworkStateType.WIFI) {
-                console.log('[Discovery] Pas de connexion WiFi');
+                console.log('[Discovery] No WiFi connection');
                 this.setState(DISCOVERY_STATES.ERROR);
                 this.scheduleRetry();
                 return;
             }
+            console.log('[Discovery] WiFi connected');
 
             // Obtenir l'adresse IP de base
             const baseIP = await this.getLocalIPBase();
             if (!baseIP) {
-                console.log('[Discovery] Impossible d\'obtenir l\'IP de base');
+                console.log('[Discovery] Could not get base IP');
                 this.setState(DISCOVERY_STATES.ERROR);
                 this.scheduleRetry();
                 return;
             }
+            console.log('[Discovery] Base IP:', baseIP);
 
-            console.log('[Discovery] Début du scan sur', baseIP);
+            console.log('[Discovery] Starting network scan...');
             this.setState(DISCOVERY_STATES.SCANNING);
             this.bScanning = true;
 
             // 1. Scanner d'abord les IPs prioritaires
-            console.log('[Discovery] Scan des IPs prioritaires...');
+            console.log('[Discovery] Scanning priority IPs:', CONFIG.PRIORITY_IPS);
             const priorityPromises = CONFIG.PRIORITY_IPS.map(i => {
                 const ip = `${baseIP}.${i}`;
                 return this.checkServer(ip);
@@ -124,7 +127,7 @@ class ServerDiscovery {
             const priorityResults = await Promise.all(priorityPromises);
             const foundPriority = priorityResults.find(r => r.found);
             if (foundPriority) {
-                console.log('[Discovery] Serveur trouvé sur IP prioritaire:', foundPriority.ip);
+                console.log('[Discovery] Server found on priority IP:', foundPriority);
                 this.serverAddress = foundPriority.ip;
                 this.serverName = foundPriority.pcName;
                 this.serverIP = foundPriority.pcIP;
@@ -132,15 +135,18 @@ class ServerDiscovery {
                 this.setState(DISCOVERY_STATES.SERVER_FOUND);
                 return;
             }
+            console.log('[Discovery] No server found on priority IPs');
 
             // 2. Scanner le reste des IPs par batch si rien trouvé
-            console.log('[Discovery] Scan des IPs restantes...');
+            console.log('[Discovery] Starting full network scan...');
             const remainingIPs = Array.from({length: 255}, (_, i) => i + 1)
                 .filter(i => !CONFIG.PRIORITY_IPS.includes(i));
 
             for (let i = 0; i < remainingIPs.length && this.bScanning; i += CONFIG.BATCH_SIZE) {
                 const batch = remainingIPs.slice(i, i + CONFIG.BATCH_SIZE);
-                console.log(`[Discovery] Batch ${i/CONFIG.BATCH_SIZE + 1}/${Math.ceil(remainingIPs.length/CONFIG.BATCH_SIZE)}`);
+                const batchNumber = Math.floor(i/CONFIG.BATCH_SIZE) + 1;
+                const totalBatches = Math.ceil(remainingIPs.length/CONFIG.BATCH_SIZE);
+                console.log(`[Discovery] Scanning batch ${batchNumber}/${totalBatches} (IPs ${batch[0]}-${batch[batch.length-1]})`);
 
                 const promises = batch.map(n => {
                     const ip = `${baseIP}.${n}`;
@@ -151,7 +157,7 @@ class ServerDiscovery {
                 const found = results.find(r => r.found);
                 
                 if (found) {
-                    console.log('[Discovery] Serveur trouvé:', found.ip);
+                    console.log('[Discovery] Server found:', found);
                     this.serverAddress = found.ip;
                     this.serverName = found.pcName;
                     this.serverIP = found.pcIP;
@@ -163,7 +169,7 @@ class ServerDiscovery {
 
             // Si on arrive ici et qu'on scanne toujours, c'est qu'on n'a rien trouvé
             if (this.bScanning) {
-                console.log('[Discovery] Aucun serveur trouvé');
+                console.log('[Discovery] No server found');
                 this.setState(DISCOVERY_STATES.NO_SERVER);
                 this.scheduleRetry();
             }
@@ -206,11 +212,12 @@ class ServerDiscovery {
             clearTimeout(timeoutId);
 
             if (!response.ok) {
+                console.log(`[Discovery] ${ip} not responding (${response.status})`);
                 return { found: false, ip: ip };
             }
 
             const data = await response.json();
-            console.log(`[Discovery] Réponse de ${ip}:`, data);
+            console.log(`[Discovery] Server found at ${ip}:`, data);
 
             return {
                 found: true,
@@ -219,6 +226,11 @@ class ServerDiscovery {
                 pcIP: data.ip || ip
             };
         } catch (error) {
+            if (error.name === 'AbortError') {
+                console.log(`[Discovery] ${ip} timeout`);
+            } else {
+                console.log(`[Discovery] ${ip} error:`, error.message);
+            }
             return { found: false, ip: ip };
         }
     }
@@ -246,31 +258,56 @@ class ServerDiscovery {
         }
     }
 
-    startKeepalive() {
+    async startKeepalive() {
         // Arrêter l'ancien keepalive s'il existe
         this.stopKeepalive();
 
-        // Démarrer le nouveau keepalive
-        this.keepaliveInterval = setInterval(async () => {
+        const sendPing = async () => {
             try {
+                console.log(`[Discovery] Sending ping to ${this.serverAddress}:${CONFIG.PORT}`);
+                const startTime = Date.now();
+                
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 2000); // Timeout de 2s
+
                 const response = await fetch(`http://${this.serverAddress}:${CONFIG.PORT}/ping`, {
-                    headers: { 'Accept': 'application/json' }
+                    headers: { 'Accept': 'application/json' },
+                    signal: controller.signal
                 });
+
+                clearTimeout(timeoutId);
                 
                 if (!response.ok) {
                     console.log('[Discovery] Keepalive failed - server not responding');
                     this.handleServerLost();
+                    return;
+                }
+
+                const data = await response.json();
+                const pingTime = Date.now() - startTime;
+                console.log(`[Discovery] Ping response received in ${pingTime}ms:`, data);
+
+                // Planifier le prochain ping seulement si la connexion est toujours active
+                if (this.keepaliveInterval) {
+                    this.keepaliveInterval = setTimeout(sendPing, CONFIG.KEEPALIVE_INTERVAL);
                 }
             } catch (error) {
-                console.log('[Discovery] Keepalive failed:', error.message);
+                if (error.name === 'AbortError') {
+                    console.log('[Discovery] Keepalive timeout - server not responding');
+                } else {
+                    console.log('[Discovery] Keepalive failed:', error.message);
+                }
                 this.handleServerLost();
             }
-        }, CONFIG.KEEPALIVE_INTERVAL);
+        };
+
+        // Démarrer le premier ping
+        this.keepaliveInterval = setTimeout(sendPing, 0);
     }
 
     stopKeepalive() {
         if (this.keepaliveInterval) {
-            clearInterval(this.keepaliveInterval);
+            clearTimeout(this.keepaliveInterval);
             this.keepaliveInterval = null;
         }
     }
@@ -283,6 +320,7 @@ class ServerDiscovery {
         this.serverIP = null;
         this.message = MESSAGES.NO_SERVER;
         this.setState(DISCOVERY_STATES.NO_SERVER);
+        this.notifyObservers();  // Notifier les observers pour mettre à jour l'IHM
         this.scheduleRetry();
     }
 
