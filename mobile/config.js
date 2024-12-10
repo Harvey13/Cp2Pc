@@ -7,13 +7,13 @@ export const CONFIG = {
     RETRY_DELAY: 3000,
 
     // Timeout pour le scan d'une IP (en ms)
-    SCAN_TIMEOUT: 1000,
+    SCAN_TIMEOUT: 100,
 
     // Nombre d'IPs à scanner en parallèle
     BATCH_SIZE: 10,
 
-    // IPs à scanner en priorité (derniers octets)
-    PRIORITY_IPS: [1],
+    // Nombre maximum d'IPs à garder en mémoire
+    MAX_REMEMBERED_IPS: 5,
 
     // Intervalle entre les pings de keepalive (en ms)
     KEEPALIVE_INTERVAL: 1000

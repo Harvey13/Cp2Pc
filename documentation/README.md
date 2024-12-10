@@ -92,3 +92,5 @@ L'application mobile sert d'interface pour :
 - Avant de copier un fichier, verifier que celui-ci n'existe pas
 - On ne commit pas des bouts de code mais des fonctionnalités qui ont été testées 
 - Ne pas installer android studio sur mon pc
+- pour les commit sur github, il faut mettre le message entre guillemets doubles et sur une seule ligne
+

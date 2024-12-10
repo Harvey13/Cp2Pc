@@ -16,7 +16,7 @@ const CONFIG = {
     BATCH_SIZE: 10,        // Batch plus petit pour les prioritaires
     RETRY_DELAY: 3000,     // 3s entre les retries
     KEEPALIVE_INTERVAL: 1000, // 1s entre les keepalive
-    PRIORITY_IPS: [1, 2, 100, 101, 102, 150, 151, 152, 200, 201, 202, 254, 255] // IPs prioritaires
+    MAX_REMEMBERED_IPS: 5 // Nombre maximum d'IPs à sauvegarder
 };
 
 const MESSAGES = {
@@ -38,9 +38,36 @@ class ServerDiscovery {
         this.keepaliveInterval = null;
         this.observers = new Set();
         this.message = MESSAGES.SCANNING;
+        
+        // Liste des dernières IPs serveur trouvées (dernier octet uniquement)
+        this.lastFoundIPs = [];
+        try {
+            const saved = localStorage.getItem('lastFoundIPs');
+            if (saved) {
+                this.lastFoundIPs = JSON.parse(saved);
+            }
+        } catch (error) {
+            console.log('[Discovery] Error loading last IPs:', error);
+        }
 
         // Démarrer le scan immédiatement
         this.scanNetwork();
+    }
+
+    // Sauvegarder une nouvelle IP trouvée
+    saveFoundIP(ip) {
+        const lastOctet = parseInt(ip.split('.').pop());
+        if (!this.lastFoundIPs.includes(lastOctet)) {
+            this.lastFoundIPs.unshift(lastOctet);
+            // Garder seulement les N dernières IPs
+            this.lastFoundIPs = this.lastFoundIPs.slice(0, CONFIG.MAX_REMEMBERED_IPS);
+            // Sauvegarder dans le localStorage
+            try {
+                localStorage.setItem('lastFoundIPs', JSON.stringify(this.lastFoundIPs));
+            } catch (error) {
+                console.log('[Discovery] Error saving last IPs:', error);
+            }
+        }
     }
 
     setState(newState) {
@@ -117,30 +144,33 @@ class ServerDiscovery {
             this.setState(DISCOVERY_STATES.SCANNING);
             this.bScanning = true;
 
-            // 1. Scanner d'abord les IPs prioritaires
-            console.log('[Discovery] Scanning priority IPs:', CONFIG.PRIORITY_IPS);
-            const priorityPromises = CONFIG.PRIORITY_IPS.map(i => {
-                const ip = `${baseIP}.${i}`;
-                return this.checkServer(ip);
-            });
+            // 1. Scanner d'abord les dernières IPs où un serveur a été trouvé
+            if (this.lastFoundIPs.length > 0) {
+                console.log('[Discovery] Scanning last known server IPs:', this.lastFoundIPs);
+                const lastIPsPromises = this.lastFoundIPs.map(lastOctet => {
+                    const ip = `${baseIP}.${lastOctet}`;
+                    return this.checkServer(ip);
+                });
 
-            const priorityResults = await Promise.all(priorityPromises);
-            const foundPriority = priorityResults.find(r => r.found);
-            if (foundPriority) {
-                console.log('[Discovery] Server found on priority IP:', foundPriority);
-                this.serverAddress = foundPriority.ip;
-                this.serverName = foundPriority.pcName;
-                this.serverIP = foundPriority.pcIP;
-                this.bScanning = false;
-                this.setState(DISCOVERY_STATES.SERVER_FOUND);
-                return;
+                const lastIPsResults = await Promise.all(lastIPsPromises);
+                const foundLastIP = lastIPsResults.find(r => r.found);
+                if (foundLastIP) {
+                    console.log('[Discovery] Server found on last known IP:', foundLastIP);
+                    this.serverAddress = foundLastIP.ip;
+                    this.serverName = foundLastIP.pcName;
+                    this.serverIP = foundLastIP.pcIP;
+                    this.saveFoundIP(foundLastIP.ip);
+                    this.bScanning = false;
+                    this.setState(DISCOVERY_STATES.SERVER_FOUND);
+                    return;
+                }
+                console.log('[Discovery] No server found on last known IPs');
             }
-            console.log('[Discovery] No server found on priority IPs');
 
             // 2. Scanner le reste des IPs par batch si rien trouvé
             console.log('[Discovery] Starting full network scan...');
             const remainingIPs = Array.from({length: 255}, (_, i) => i + 1)
-                .filter(i => !CONFIG.PRIORITY_IPS.includes(i));
+                .filter(i => !this.lastFoundIPs.includes(i));
 
             for (let i = 0; i < remainingIPs.length && this.bScanning; i += CONFIG.BATCH_SIZE) {
                 const batch = remainingIPs.slice(i, i + CONFIG.BATCH_SIZE);
@@ -161,6 +191,7 @@ class ServerDiscovery {
                     this.serverAddress = found.ip;
                     this.serverName = found.pcName;
                     this.serverIP = found.pcIP;
+                    this.saveFoundIP(found.ip);
                     this.bScanning = false;
                     this.setState(DISCOVERY_STATES.SERVER_FOUND);
                     return;
@@ -175,7 +206,7 @@ class ServerDiscovery {
             }
 
         } catch (error) {
-            console.error('[Discovery] Erreur:', error);
+            console.error('[Discovery] Error:', error);
             this.setState(DISCOVERY_STATES.ERROR);
             this.scheduleRetry();
         }
