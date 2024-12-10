@@ -1,29 +1,30 @@
 # Cp2Pc - Cahier des Charges
 
-Application de copie de fichiers sans fil entre mobile et PC
+Application de copie de fichiers sans fil entre mobile et PC Windows
 
 Le cahier des charges représente les fonctionnalités souhaitées pour le projet Cp2Pc, sans expliquer comment les implémenter.
 Les fichiers mobile.md et server.md détaillent les fonctionnalités côté serveur et mobile.
 Le fichier checklist.md décrit l'évolution du projet avec les éléments fonctionnels ou à modifier.
 
-Caractéristiques principales
+# Caractéristiques principales
 ---------------------------
 - Découverte automatique sur le réseau local
+- redémarrage du scan 3s après deconnexion
 - Interface PC pour définir les mappings de dossiers
 - Interface mobile pour la connexion et le suivi de copie
 
-Interface utilisateur du serveur (PC)
+# Interface utilisateur du serveur (PC)
 --------------------------------------
 Définition
 - Mapping = Multiples paires de dossiers source (mobile) / destination (PC)
 
-Écran principal
+## Écran principal
 ---------------
 - LED verte indiquant la connexion au mobile
 - Icône de roue dentée pour accéder à la page de configuration
 - Affichage selon le scénario
 
-Scénarios d'affichage
+## Scénarios d'affichage
 ---------------------
 - Si aucun mapping : Grand bouton avec icône et texte pour créer un nouveau mapping
 - Si au moins un mapping existe :
@@ -31,7 +32,7 @@ Scénarios d'affichage
   - Petit icône pour ajouter un nouveau mapping
   - Affichage des mappings existants : Titre, barre de progression
 
-Page d'édition des mappings
+### Page d'édition des mappings
 -----------------------------
 - Bouton pour ajouter un nouveau mapping
 - Pour chaque cadre de mapping :
@@ -40,13 +41,13 @@ Page d'édition des mappings
   - Chemin source avec bouton de sélection de dossier sur le mobile
   - Chemin destination avec bouton de sélection de dossier sur le PC
 
-Écran de configuration
+### Écran de configuration
 -----------------------
 - Icône pour paramétrer le nombre max de fichiers
 - drapeau de langue pour changer la langue des IHM server et mobile
 - Sauvegarde en local storage
 
-Interface Mobile
+# Interface Mobile
 -----------------
 - Affichage du texte "PC trouvé" avec son adresse IP et le nom du PC fourni par le serveur à la fin de la recherche
 - Afficher "Recherche en cours..." pendant le scan avec une roue qui se remplie pour les adresse de 1 à 255
@@ -57,7 +58,7 @@ Interface Mobile
  - une barre de progression est affichée
  - l'avancement de la copie est affiché nombre de fichiers copiés/ nbr fichier à copier
  
-Transfert de fichiers
+# Transfert de fichiers
 ----------------------
 Le pc a plusieurs interfaces réseaux, le prendre en compte.
 Le mobile utilise sa propre adresse local pour trouve le subnet.
@@ -68,9 +69,9 @@ L'application mobile sert d'interface pour :
 - Détection du serveur
 - Reconnexion automatique en cas de perte
 
-Modes de fonctionnement
+# Modes de fonctionnement
 -----------------------
-Mode Debug (développement)
+## Mode Debug (développement)
 ---------------------------
 - Logs détaillés du scan réseau
 - Affichage des adresses IP testées
@@ -78,13 +79,16 @@ Mode Debug (développement)
 - Statut des connexions
 - Messages d'erreur détaillés
 
-Mode Release (production)
+## Mode Release (production)
 -------------------------
 - Logs minimaux
 - Uniquement erreurs critiques
 - Statut de connexion simplifié
 
-Conseil de base
+# Règles de base ! IMPORTANT ! A APPLIQUER SYSTEMATIQUEMENT !
 -------------------------
+- Utilise seulement les commandes Windows pour mon projet
 - Avant de créer un dossier, vérifier que celui-ci n'existe pas
 - Avant de copier un fichier, verifier que celui-ci n'existe pas
+- On ne commit pas des bouts de code mais des fonctionnalités qui ont été testées 
+- Ne pas installer android studio sur mon pc

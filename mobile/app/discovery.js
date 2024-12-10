@@ -21,13 +21,12 @@ export default function DiscoveryScreen() {
 
     return (
         <View style={styles.container}>
-            <Text style={styles.title}>Cp2Pc Mobile</Text>
-            
-            <View style={styles.statusContainer}>
-                <View style={[styles.statusDot, { backgroundColor: getStatusColor() }]} />
-                <Text style={styles.statusText}>{message}</Text>
-            </View>
-            
+            {state !== DISCOVERY_STATES.SERVER_FOUND && (
+                <View style={styles.statusContainer}>
+                    <View style={[styles.statusDot, { backgroundColor: getStatusColor() }]} />
+                    <Text style={styles.statusText}>{message}</Text>
+                </View>
+            )}
             {state === DISCOVERY_STATES.SERVER_FOUND && (
                 <View style={styles.serverInfo}>
                     <Text style={styles.checkmark}>✓</Text>

@@ -24,6 +24,10 @@ let currentConfig = { ...DEFAULT_CONFIG };
 let expressApp = null;
 let connectedMobileIP = null;
 let lastPingTime = null;
+let lastPingInterval = null;
+
+// Configuration
+const PING_TIMEOUT = 2000; // 2 secondes (2 fois l'intervalle du mobile)
 
 // Initialiser Express
 function createServer() {
@@ -65,19 +69,21 @@ function createServer() {
 // Vérifier la connexion mobile périodiquement
 function startConnectionCheck() {
     setInterval(() => {
-        if (lastPingTime && connectedMobileIP) {
-            const now = Date.now();
-            // Si pas de ping depuis 5 secondes
-            if (now - lastPingTime > 5000) {
-                console.log('[Server] Mobile connection timeout');
+        const now = Date.now();
+        if (lastPingTime) {
+            lastPingInterval = now - lastPingTime;
+            // Si le dernier ping est plus vieux que PING_TIMEOUT
+            if (lastPingInterval > PING_TIMEOUT) {
+                console.log('[Server] Mobile connection timeout - Last ping interval:', lastPingInterval, 'ms');
                 if (mainWindow) {
                     mainWindow.webContents.send('mobile-disconnected');
                 }
                 connectedMobileIP = null;
                 lastPingTime = null;
+                lastPingInterval = null;
             }
         }
-    }, 2000);
+    }, 1000); // Vérification toutes les secondes
 }
 
 // Obtenir l'IP locale
