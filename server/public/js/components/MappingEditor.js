@@ -4,6 +4,38 @@ class MappingEditor extends HTMLElement {
         super();
         this.mapping = null;
         this.render();
+        
+        // Lier les méthodes au contexte
+        this.handleMobileFolderSelected = this.handleMobileFolderSelected.bind(this);
+        this.handlePCFolderSelected = this.handlePCFolderSelected.bind(this);
+        
+        this.initFolderSelectionHandlers();
+        this.addEventListeners();
+    }
+
+    // Gestionnaires d'événements pour la sélection des dossiers
+    handleMobileFolderSelected(event) {
+        console.log('Mobile folder selected:', event.detail);
+        if (event.detail) {
+            const input = this.querySelector('#sourcePath');
+            if (input) {
+                input.value = event.detail;
+            } else {
+                console.error('Source path input not found');
+            }
+        }
+    }
+
+    handlePCFolderSelected(event) {
+        console.log('PC folder selected:', event.detail);
+        if (event.detail) {
+            const input = this.querySelector('#destPath');
+            if (input) {
+                input.value = event.detail;
+            } else {
+                console.error('Dest path input not found');
+            }
+        }
     }
 
     // Définir le mapping à éditer
@@ -25,14 +57,14 @@ class MappingEditor extends HTMLElement {
                 </div>
                 <div class="editor-content">
                     <div class="form-group">
-                        <label for="mapping-title">Titre</label>
-                        <input type="text" id="mapping-title" value="${this.mapping ? this.mapping.title : ''}" placeholder="Entrez un titre">
+                        <label for="mappingTitle">Titre</label>
+                        <input type="text" id="mappingTitle" value="${this.mapping ? this.mapping.title : ''}" placeholder="Entrez un titre">
                     </div>
                     <div class="form-group">
                         <label>Source (Mobile)</label>
                         <div class="path-input">
-                            <input type="text" id="source-path" value="${this.mapping ? this.mapping.sourcePath : ''}" readonly placeholder="Sélectionnez un dossier source">
-                            <button class="browse-btn" id="browse-source">
+                            <input type="text" id="sourcePath" value="${this.mapping ? this.mapping.sourcePath : ''}" readonly placeholder="Sélectionnez un dossier source">
+                            <button class="browse-btn" id="browseSourceBtn">
                                 <svg viewBox="0 0 24 24" width="16" height="16">
                                     <path fill="currentColor" d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
                                 </svg>
@@ -42,8 +74,8 @@ class MappingEditor extends HTMLElement {
                     <div class="form-group">
                         <label>Destination (PC)</label>
                         <div class="path-input">
-                            <input type="text" id="dest-path" value="${this.mapping ? this.mapping.destPath : ''}" readonly placeholder="Sélectionnez un dossier destination">
-                            <button class="browse-btn" id="browse-dest">
+                            <input type="text" id="destPath" value="${this.mapping ? this.mapping.destPath : ''}" readonly placeholder="Sélectionnez un dossier destination">
+                            <button class="browse-btn" id="browseDestBtn">
                                 <svg viewBox="0 0 24 24" width="16" height="16">
                                     <path fill="currentColor" d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
                                 </svg>
@@ -57,8 +89,16 @@ class MappingEditor extends HTMLElement {
                 </div>
             </div>
         `;
+    }
 
-        this.addEventListeners();
+    initFolderSelectionHandlers() {
+        // Supprimer les anciens écouteurs s'ils existent
+        window.removeEventListener('mobile-folder-selected', this.handleMobileFolderSelected);
+        window.removeEventListener('pc-folder-selected', this.handlePCFolderSelected);
+
+        // Ajouter les nouveaux écouteurs
+        window.addEventListener('mobile-folder-selected', this.handleMobileFolderSelected);
+        window.addEventListener('pc-folder-selected', this.handlePCFolderSelected);
     }
 
     addEventListeners() {
@@ -75,9 +115,9 @@ class MappingEditor extends HTMLElement {
         // Bouton de sauvegarde
         this.querySelector('.save-btn').addEventListener('click', () => {
             const mappingData = {
-                title: this.querySelector('#mapping-title').value,
-                sourcePath: this.querySelector('#source-path').value,
-                destPath: this.querySelector('#dest-path').value
+                title: this.querySelector('#mappingTitle').value,
+                sourcePath: this.querySelector('#sourcePath').value,
+                destPath: this.querySelector('#destPath').value
             };
 
             if (this.mapping) {
@@ -90,17 +130,33 @@ class MappingEditor extends HTMLElement {
         });
 
         // Boutons de sélection de dossier
-        this.querySelector('#browse-source').addEventListener('click', async () => {
+        this.querySelector('#browseSourceBtn').addEventListener('click', async () => {
+            console.log('Clicking browse source button');
             if (window.api) {
-                window.api.selectMobileFolder();
+                try {
+                    await window.api.selectMobileFolder();
+                } catch (error) {
+                    console.error('Error selecting mobile folder:', error);
+                }
             }
         });
 
-        this.querySelector('#browse-dest').addEventListener('click', async () => {
+        this.querySelector('#browseDestBtn').addEventListener('click', async () => {
+            console.log('Clicking browse dest button');
             if (window.api) {
-                window.api.selectPCFolder();
+                try {
+                    await window.api.selectPCFolder();
+                } catch (error) {
+                    console.error('Error selecting PC folder:', error);
+                }
             }
         });
+    }
+
+    // Nettoyer les écouteurs quand le composant est détruit
+    disconnectedCallback() {
+        window.removeEventListener('mobile-folder-selected', this.handleMobileFolderSelected);
+        window.removeEventListener('pc-folder-selected', this.handlePCFolderSelected);
     }
 }
 

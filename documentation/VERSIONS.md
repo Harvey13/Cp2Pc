@@ -22,6 +22,15 @@
   - Meilleure organisation des composants JavaScript
   - Amélioration de la gestion de la configuration
 
+## v0.05 (2024-12-11)
+
+### Corrections
+- Correction de la sélection des dossiers dans la fenêtre de mapping
+- Ajout des devtools en mode développement dans la fenêtre de mapping
+- Amélioration de la gestion des événements IPC pour la sélection des dossiers
+- Correction des IDs des champs dans le formulaire de mapping
+- Ajout de logs détaillés pour faciliter le débogage
+
 ## v0.03 (2024-12-10)
 
 ### Améliorations

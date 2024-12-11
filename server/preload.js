@@ -45,10 +45,6 @@ contextBridge.exposeInMainWorld('electron', {
     },
 
     // Gestion des chemins
-    selectDirectory: async () => {
-        return await ipcRenderer.invoke('select-directory');
-    },
-    
     validatePath: async (path) => {
         return await ipcRenderer.invoke('validate-path', path);
     },
@@ -129,23 +125,19 @@ contextBridge.exposeInMainWorld('api', {
 
     // Actions des boutons
     openConfig: () => {
-        console.log('[IPC] Demande ouverture configuration');
         ipcRenderer.send('open-config-window');
     },
 
     addMapping: () => {
-        console.log('[IPC] Demande ajout mapping');
-        ipcRenderer.send('add-mapping');
+        ipcRenderer.invoke('open-mapping-dialog');
     },
 
-    selectMobileFolder: (mappingId) => {
-        console.log('[IPC] Demande sélection dossier mobile pour mapping', mappingId);
-        ipcRenderer.send('select-mobile-folder', mappingId);
+    selectMobileFolder: () => {
+        return ipcRenderer.invoke('select-mobile-folder');
     },
 
-    selectPCFolder: (mappingId) => {
-        console.log('[IPC] Demande sélection dossier PC pour mapping', mappingId);
-        ipcRenderer.send('select-pc-folder', mappingId);
+    selectPCFolder: () => {
+        return ipcRenderer.invoke('select-pc-folder');
     },
 
     startCopy: (mappings) => {
@@ -157,14 +149,25 @@ contextBridge.exposeInMainWorld('api', {
 // Initialisation
 window.addEventListener('DOMContentLoaded', async () => {
     try {
+        // Écouter les événements de sélection de dossier
+        ipcRenderer.on('mobile-folder-selected', (event, path) => {
+            window.dispatchEvent(new CustomEvent('mobile-folder-selected', { detail: path }));
+        });
+
+        ipcRenderer.on('pc-folder-selected', (event, path) => {
+            window.dispatchEvent(new CustomEvent('pc-folder-selected', { detail: path }));
+        });
+
         // Charger la configuration initiale
         const config = await ipcRenderer.invoke('get-config');
-        window.dispatchEvent(new CustomEvent('config-loaded', { detail: config }));
-        
+        if (config) {
+            window.dispatchEvent(new CustomEvent('config-loaded', { detail: config }));
+        }
+
         // Charger la langue initiale
         const language = await ipcRenderer.invoke('get-current-language');
         window.dispatchEvent(new CustomEvent('language-loaded', { detail: language }));
     } catch (error) {
-        console.error('Error during initialization:', error);
+        console.error('Erreur lors de l\'initialisation:', error);
     }
 });

@@ -165,7 +165,8 @@ function createMappingWindow() {
         webPreferences: {
             nodeIntegration: false,
             contextIsolation: true,
-            preload: path.join(__dirname, 'preload.js')
+            preload: path.join(__dirname, 'preload.js'),
+            devTools: true // Activer les devtools
         },
         parent: mainWindow,
         modal: true,
@@ -175,6 +176,10 @@ function createMappingWindow() {
     mappingWindow.loadFile(path.join(__dirname, 'public', 'mapping.html'));
     mappingWindow.once('ready-to-show', () => {
         mappingWindow.show();
+        // Ouvrir les devtools en mode dev
+        if (isDev) {
+            mappingWindow.webContents.openDevTools();
+        }
     });
 }
 
@@ -245,29 +250,35 @@ function setupIPC() {
     });
 
     // Sélection de dossiers
-    ipcMain.handle('select-directory', async () => {
-        const result = await dialog.showOpenDialog(mainWindow, {
+    ipcMain.handle('select-pc-folder', async (event) => {
+        console.log('[IPC] Selecting PC folder');
+        const result = await dialog.showOpenDialog(BrowserWindow.fromWebContents(event.sender), {
             properties: ['openDirectory']
         });
-        return result.filePaths[0];
-    });
-
-    // Gestion des mappings
-    ipcMain.handle('get-mappings', async () => {
-        const config = await loadConfig();
-        return config.mappings || [];
+        
+        if (!result.canceled && result.filePaths.length > 0) {
+            const selectedPath = result.filePaths[0];
+            console.log('[IPC] PC folder selected:', selectedPath);
+            event.sender.send('pc-folder-selected', selectedPath);
+            return selectedPath;
+        }
+        return null;
     });
 
     ipcMain.handle('select-mobile-folder', async (event, mappingId) => {
-        // Envoyer une requête au mobile pour sélectionner un dossier
-        // Pour l'instant, simulons une réponse
-        setTimeout(() => {
-            mappingWindow.webContents.send('folder-selected', {
-                id: mappingId,
-                type: 'source',
-                path: '/storage/emulated/0/DCIM/Camera'
-            });
-        }, 1000);
+        console.log('[IPC] Selecting mobile folder');
+        // Pour l'instant, on utilise aussi un sélecteur de dossier local
+        const result = await dialog.showOpenDialog(BrowserWindow.fromWebContents(event.sender), {
+            properties: ['openDirectory']
+        });
+        
+        if (!result.canceled && result.filePaths.length > 0) {
+            const selectedPath = result.filePaths[0];
+            console.log('[IPC] Mobile folder selected:', selectedPath);
+            event.sender.send('mobile-folder-selected', selectedPath);
+            return selectedPath;
+        }
+        return null;
     });
 
     ipcMain.handle('save-mapping', async (event, mapping) => {
@@ -295,6 +306,12 @@ function setupIPC() {
         }
     });
 
+    // Gestion des mappings
+    ipcMain.handle('get-mappings', async () => {
+        const config = await loadConfig();
+        return config.mappings || [];
+    });
+
     // Gestion des mappings supplémentaires
     ipcMain.on('add-mapping', () => {
         const newMapping = {
@@ -305,19 +322,6 @@ function setupIPC() {
             progress: 0
         };
         mainWindow.webContents.send('mapping-added', newMapping);
-    });
-
-    ipcMain.on('select-pc-folder', async (event, mappingId) => {
-        const result = await dialog.showOpenDialog(mainWindow, {
-            properties: ['openDirectory']
-        });
-        if (!result.canceled && result.filePaths.length > 0) {
-            mainWindow.webContents.send('folder-selected', {
-                id: mappingId,
-                type: 'destination',
-                path: result.filePaths[0]
-            });
-        }
     });
 
     ipcMain.on('start-copy', (event, mappings) => {

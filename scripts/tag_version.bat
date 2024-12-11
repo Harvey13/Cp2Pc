@@ -1,5 +1,5 @@
 @echo off
-setlocal enabledelayedexpansion
+setlocal
 
 REM Verifier si un parametre a ete fourni
 if "%~1"=="" (
@@ -26,6 +26,9 @@ if errorlevel 1 (
     exit /b 1
 )
 
+REM Se deplacer dans le repertoire racine du projet
+cd ..
+
 echo.
 echo ===== Processus de versioning %VERSION% =====
 echo.
@@ -49,38 +52,31 @@ if errorlevel 1 (
 
 REM Creer le tag
 echo.
-echo Creation du tag %VERSION%...
+echo Creation du tag...
 git tag -a %VERSION% -m "%MESSAGE%"
 if errorlevel 1 (
     echo Erreur lors de la creation du tag
     exit /b 1
 )
 
-REM Pousser les changements
+REM Push le tag
 echo.
-echo Envoi des changements vers le depot distant...
-git push
-if errorlevel 1 (
-    echo Erreur lors de l'envoi des changements
-    exit /b 1
-)
-
-REM Pousser le tag
-echo.
-echo Envoi du tag vers le depot distant...
+echo Push du tag...
 git push origin %VERSION%
 if errorlevel 1 (
-    echo Erreur lors de l'envoi du tag
+    echo Erreur lors du push du tag
+    exit /b 1
+)
+
+REM Push les changements
+echo.
+echo Push des changements...
+git push
+if errorlevel 1 (
+    echo Erreur lors du push des changements
     exit /b 1
 )
 
 echo.
-echo ===== Version %VERSION% creee et publiee avec succes ! =====
-echo.
-echo Resume des actions:
-echo - Fichiers modifies ajoutes
-echo - Commit cree avec le message: %VERSION%: %MESSAGE%
-echo - Tag %VERSION% cree
-echo - Changements pousses vers le depot distant
-echo - Tag pousse vers le depot distant
+echo ===== Version %VERSION% creee et publiee avec succes =====
 echo.
