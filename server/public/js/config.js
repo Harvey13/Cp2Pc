@@ -1,63 +1,66 @@
 class ConfigUI {
     constructor() {
+        this.initForm();
         this.initButtons();
-        this.initLanguageButtons();
         this.loadConfig();
     }
 
     async loadConfig() {
-        if (window.electron) {
-            const config = await window.electron.getConfig();
-            if (config) {
-                document.getElementById('maxFiles').value = config.maxFiles || 1000;
-                this.updateLanguage(config.language || 'fr');
+        try {
+            if (window.api) {
+                const config = await window.api.getConfig();
+                if (config) {
+                    document.getElementById('maxFiles').value = config.maxFiles || 1000;
+                    this.updateLanguage(config.language || 'fr');
+                }
             }
+        } catch (error) {
+            console.error('Erreur lors du chargement de la configuration:', error);
         }
     }
 
-    updateLanguage(lang) {
-        document.querySelectorAll('.language-btn').forEach(btn => {
-            btn.classList.toggle('active', btn.dataset.lang === lang);
-        });
+    initForm() {
+        // Initialiser les champs du formulaire avec des valeurs par défaut
+        document.getElementById('maxFiles').value = 1000;
+        this.updateLanguage('fr');
     }
 
     initButtons() {
         document.getElementById('saveBtn').addEventListener('click', () => this.saveConfig());
         document.getElementById('cancelBtn').addEventListener('click', () => {
-            if (window.electron) {
-                window.electron.closeWindow();
+            if (window.api) {
+                window.api.closeWindow();
             }
         });
     }
 
-    initLanguageButtons() {
+    updateLanguage(lang) {
+        // Mettre à jour l'affichage de la langue sélectionnée
         document.querySelectorAll('.language-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const lang = btn.dataset.lang;
-                this.updateLanguage(lang);
-                if (window.i18nManager) {
-                    window.i18nManager.setLanguage(lang);
-                }
-            });
+            btn.classList.toggle('active', btn.dataset.lang === lang);
         });
     }
 
     async saveConfig() {
-        if (window.electron) {
+        try {
             const config = {
                 maxFiles: parseInt(document.getElementById('maxFiles').value) || 1000,
                 language: document.querySelector('.language-btn.active')?.dataset.lang || 'fr'
             };
-            
-            const success = await window.electron.saveConfig(config);
-            if (success) {
-                window.electron.closeWindow();
+
+            if (window.api) {
+                const success = await window.api.saveConfig(config);
+                if (success) {
+                    window.api.closeWindow();
+                }
             }
+        } catch (error) {
+            console.error('Erreur lors de la sauvegarde de la configuration:', error);
         }
     }
 }
 
-// Initialisation
+// Initialiser l'interface de configuration
 document.addEventListener('DOMContentLoaded', () => {
-    window.configUI = new ConfigUI();
+    new ConfigUI();
 });

@@ -27,7 +27,7 @@ let lastPingTime = null;
 let lastPingInterval = null;
 
 // Configuration
-const PING_TIMEOUT = 2000; // 2 secondes (2 fois l'intervalle du mobile)
+const PING_TIMEOUT = 5000; // 5 secondes pour être plus tolérant
 
 // Initialiser Express
 function createServer() {
@@ -36,11 +36,17 @@ function createServer() {
     // Endpoint de ping pour la découverte et keepalive
     expressApp.get('/ping', (req, res) => {
         const clientIP = req.ip;
-        console.log('[Server] Ping from', clientIP);
+        const now = Date.now();
+        console.log(`[Server] Ping from ${clientIP} at ${now}`);
+        
+        // Si c'est un nouveau client ou une reconnexion
+        if (clientIP !== connectedMobileIP) {
+            console.log(`[Server] New mobile connection from ${clientIP}`);
+        }
         
         // Mettre à jour l'état de connexion et le timestamp
         connectedMobileIP = clientIP;
-        lastPingTime = Date.now();
+        lastPingTime = now;
         
         // Notifier le frontend
         if (mainWindow) {
@@ -50,9 +56,9 @@ function createServer() {
         // Répondre avec les infos du serveur pour le mobile
         res.json({
             status: 'ok',
-            name: os.hostname(),    // Nom du PC pour affichage sur mobile
-            ip: getLocalIP(),       // IP du serveur pour affichage sur mobile
-            clientIP: clientIP      // IP du mobile (optionnel)
+            name: os.hostname(),
+            ip: getLocalIP(),
+            clientIP: clientIP
         });
     });
 
@@ -70,17 +76,15 @@ function createServer() {
 function startConnectionCheck() {
     setInterval(() => {
         const now = Date.now();
-        if (lastPingTime) {
+        if (lastPingTime && connectedMobileIP) {
             lastPingInterval = now - lastPingTime;
             // Si le dernier ping est plus vieux que PING_TIMEOUT
             if (lastPingInterval > PING_TIMEOUT) {
-                console.log('[Server] Mobile connection timeout - Last ping interval:', lastPingInterval, 'ms');
+                console.log(`[Server] Mobile connection timeout - Device: ${connectedMobileIP}, Last ping: ${lastPingTime}, Interval: ${lastPingInterval}ms`);
                 if (mainWindow) {
                     mainWindow.webContents.send('mobile-disconnected');
                 }
                 connectedMobileIP = null;
-                lastPingTime = null;
-                lastPingInterval = null;
             }
         }
     }, 1000); // Vérification toutes les secondes
@@ -248,6 +252,12 @@ function setupIPC() {
         return result.filePaths[0];
     });
 
+    // Gestion des mappings
+    ipcMain.handle('get-mappings', async () => {
+        const config = await loadConfig();
+        return config.mappings || [];
+    });
+
     ipcMain.handle('select-mobile-folder', async (event, mappingId) => {
         // Envoyer une requête au mobile pour sélectionner un dossier
         // Pour l'instant, simulons une réponse
@@ -283,6 +293,49 @@ function setupIPC() {
         if (win) {
             win.close();
         }
+    });
+
+    // Gestion des mappings supplémentaires
+    ipcMain.on('add-mapping', () => {
+        const newMapping = {
+            id: Date.now(),
+            title: 'Nouveau mapping',
+            sourcePath: '',
+            destPath: '',
+            progress: 0
+        };
+        mainWindow.webContents.send('mapping-added', newMapping);
+    });
+
+    ipcMain.on('select-pc-folder', async (event, mappingId) => {
+        const result = await dialog.showOpenDialog(mainWindow, {
+            properties: ['openDirectory']
+        });
+        if (!result.canceled && result.filePaths.length > 0) {
+            mainWindow.webContents.send('folder-selected', {
+                id: mappingId,
+                type: 'destination',
+                path: result.filePaths[0]
+            });
+        }
+    });
+
+    ipcMain.on('start-copy', (event, mappings) => {
+        console.log('[Server] Démarrage de la copie avec mappings:', mappings);
+        // Simuler la progression pour chaque mapping
+        mappings.forEach(mapping => {
+            let progress = 0;
+            const interval = setInterval(() => {
+                progress += 10;
+                mainWindow.webContents.send('mapping-progress', {
+                    id: mapping.id,
+                    progress: Math.min(progress, 100)
+                });
+                if (progress >= 100) {
+                    clearInterval(interval);
+                }
+            }, 1000);
+        });
     });
 
     // Gestion des erreurs

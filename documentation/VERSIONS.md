@@ -1,5 +1,27 @@
 # Historique des versions
 
+## v0.04 (2024-12-11)
+
+### Améliorations
+- Refonte complète de l'interface utilisateur du serveur :
+  - Implémentation d'une architecture basée sur les Web Components
+  - Création de composants réutilisables (NoMappingView, MappingList, MappingEditor)
+  - Amélioration de la gestion des états et des événements
+- Amélioration de la gestion des connexions :
+  - Augmentation du timeout de ping à 5 secondes pour plus de stabilité
+  - Ajout de logs détaillés pour le diagnostic des connexions
+  - Meilleure gestion des reconnexions
+
+### Technique
+- Migration de l'API Electron vers une nouvelle structure :
+  - Séparation claire entre les APIs frontend et backend
+  - Utilisation du namespace 'api' pour toutes les interactions IPC
+  - Amélioration de la gestion des erreurs et des événements asynchrones
+- Refactoring du code :
+  - Séparation des styles dans des fichiers CSS dédiés
+  - Meilleure organisation des composants JavaScript
+  - Amélioration de la gestion de la configuration
+
 ## v0.03 (2024-12-10)
 
 ### Améliorations

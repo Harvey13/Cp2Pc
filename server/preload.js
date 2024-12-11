@@ -73,6 +73,19 @@ contextBridge.exposeInMainWorld('electron', {
 
 // Exposer les APIs au renderer
 contextBridge.exposeInMainWorld('api', {
+    // Configuration
+    getConfig: async () => {
+        return await ipcRenderer.invoke('get-config');
+    },
+    
+    saveConfig: async (config) => {
+        return await ipcRenderer.invoke('save-config', config);
+    },
+
+    closeWindow: async () => {
+        await ipcRenderer.invoke('close-window');
+    },
+
     // Événements de connexion mobile
     onMobileConnected: (callback) => {
         ipcRenderer.on('mobile-connected', callback);
@@ -89,12 +102,26 @@ contextBridge.exposeInMainWorld('api', {
         ipcRenderer.on('mapping-added', callback);
         return () => ipcRenderer.removeListener('mapping-added', callback);
     },
-
+    
+    getMappings: async () => {
+        return await ipcRenderer.invoke('get-mappings');
+    },
+    
     onMappingProgress: (callback) => {
         ipcRenderer.on('mapping-progress', callback);
         return () => ipcRenderer.removeListener('mapping-progress', callback);
     },
-
+    
+    onMappingUpdate: (callback) => {
+        ipcRenderer.on('mapping-update', callback);
+        return () => ipcRenderer.removeListener('mapping-update', callback);
+    },
+    
+    onMappingDelete: (callback) => {
+        ipcRenderer.on('mapping-delete', callback);
+        return () => ipcRenderer.removeListener('mapping-delete', callback);
+    },
+    
     onFolderSelected: (callback) => {
         ipcRenderer.on('folder-selected', callback);
         return () => ipcRenderer.removeListener('folder-selected', callback);
@@ -103,7 +130,7 @@ contextBridge.exposeInMainWorld('api', {
     // Actions des boutons
     openConfig: () => {
         console.log('[IPC] Demande ouverture configuration');
-        ipcRenderer.send('open-config');
+        ipcRenderer.send('open-config-window');
     },
 
     addMapping: () => {

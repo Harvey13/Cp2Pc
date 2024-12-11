@@ -71,24 +71,20 @@ class I18nManager {
     }
 
     async setLanguage(lang) {
-        if (!this.translations[lang]) {
-            console.error(`Language ${lang} not supported`);
-            return;
+        try {
+            if (!this.translations[lang]) {
+                console.error(`Language ${lang} not supported`);
+                return;
+            }
+
+            if (window.api) {
+                await window.api.saveConfig({ language: lang });
+                this.currentLanguage = lang;
+                this.translatePage();
+            }
+        } catch (error) {
+            console.error('Erreur lors du changement de langue:', error);
         }
-
-        this.currentLanguage = lang;
-        localStorage.setItem('language', lang);
-        
-        // Mettre à jour tous les éléments avec data-i18n
-        this.translatePage();
-
-        // Si nous sommes dans Electron, propager le changement
-        if (window.electron) {
-            await window.electron.saveConfig({ language: lang });
-        }
-
-        // Émettre un événement pour informer les autres composants
-        window.dispatchEvent(new CustomEvent('languageChanged', { detail: { language: lang } }));
     }
 
     translate(key, params = {}) {

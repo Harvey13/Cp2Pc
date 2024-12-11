@@ -1,0 +1,291 @@
+/* Styles de base */
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 20px;
+    background: #f5f5f5;
+}
+
+.container {
+    max-width: 800px;
+    margin: 0 auto;
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding: 10px;
+    background: #f8f9fa;
+    border-radius: 4px;
+}
+
+.status-container {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.status-led {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+}
+
+.status-led.connected { 
+    background: #4CAF50;
+    box-shadow: 0 0 8px #4CAF50;
+}
+
+.status-led.waiting { 
+    background: #FFA000;
+    box-shadow: 0 0 8px #FFA000;
+}
+
+.status-text {
+    font-size: 14px;
+    color: #666;
+}
+
+.icon-button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 8px;
+    color: #666;
+    transition: color 0.3s;
+}
+
+.icon-button:hover {
+    color: #333;
+    background: rgba(0, 0, 0, 0.1);
+}
+
+.main-content {
+    margin-top: 20px;
+}
+
+/* Styles pour les composants */
+
+/* NoMappingView */
+.no-mapping {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 300px;
+}
+
+.large-add-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    padding: 32px;
+    border: 2px dashed #ccc;
+    border-radius: 8px;
+    background: none;
+    color: #666;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.large-add-btn:hover {
+    border-color: #4CAF50;
+    color: #4CAF50;
+    background: rgba(76, 175, 80, 0.1);
+}
+
+/* MappingList */
+.mappings-container {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.mappings-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
+
+.start-copy-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.3s ease;
+}
+
+.start-copy-btn:hover {
+    background: #45a049;
+}
+
+.mapping-item {
+    padding: 16px;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    margin-bottom: 8px;
+}
+
+.mapping-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.mapping-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.icon-button {
+    padding: 4px;
+    background: none;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    color: #666;
+    transition: all 0.3s ease;
+}
+
+.icon-button:hover {
+    background: rgba(0, 0, 0, 0.1);
+    color: #333;
+}
+
+.mapping-paths {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.path-item {
+    display: flex;
+    gap: 8px;
+    font-size: 14px;
+}
+
+.path-label {
+    color: #666;
+    min-width: 80px;
+}
+
+.mapping-progress-container {
+    height: 4px;
+    background: #eee;
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.mapping-progress {
+    height: 100%;
+    background: #4CAF50;
+    transition: width 0.3s ease;
+}
+
+/* MappingEditor */
+.mapping-editor {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 90%;
+    max-width: 600px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 1000;
+}
+
+.editor-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px;
+    border-bottom: 1px solid #eee;
+}
+
+.editor-content {
+    padding: 16px;
+}
+
+.form-group {
+    margin-bottom: 16px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 8px;
+    color: #666;
+}
+
+.path-input {
+    display: flex;
+    gap: 8px;
+}
+
+.path-input input {
+    flex: 1;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background: #f8f9fa;
+}
+
+.browse-btn {
+    padding: 8px;
+    background: #f8f9fa;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.browse-btn:hover {
+    background: #e9ecef;
+}
+
+.editor-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 16px;
+    border-top: 1px solid #eee;
+}
+
+.cancel-btn {
+    padding: 8px 16px;
+    background: none;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.save-btn {
+    padding: 8px 16px;
+    background: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.save-btn:hover {
+    background: #45a049;
+}
