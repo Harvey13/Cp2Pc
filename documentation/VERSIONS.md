@@ -1,5 +1,21 @@
 # Historique des versions
 
+## v0.03 (2024-12-10)
+
+### Améliorations
+- Suppression du système d'IPs prioritaires statiques
+- Implémentation d'un système de mémorisation des IPs serveur :
+  - Sauvegarde des 5 dernières IPs où un serveur a été trouvé
+  - Stockage persistant dans le localStorage
+  - Scan prioritaire des dernières IPs connues
+- Optimisation du processus de découverte :
+  - Scan rapide des dernières IPs connues
+  - Scan complet du réseau uniquement si nécessaire
+
+### Technique
+- Ajout d'un script de versioning automatisé
+- Configuration du timeout de scan à 100ms
+
 ## v0.02 (2024-12-10)
 
 ### Améliorations

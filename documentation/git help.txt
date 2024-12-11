@@ -1,0 +1,2 @@
+
+PS C:\Users\herve\CascadeProjects\Cp2Pc> scripts\tag_version.bat v0.03 "Ajout de la mémorisation des IPs serveur"
