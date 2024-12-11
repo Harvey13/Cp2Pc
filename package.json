@@ -1,6 +1,6 @@
 {
   "name": "cp2pc",
-  "version": "1.0.0",
+  "version": "0.2.0",
   "description": "Cross-platform file synchronization application",
   "main": "server/src/main.js",
   "scripts": {

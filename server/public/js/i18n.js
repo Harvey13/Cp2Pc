@@ -5,7 +5,7 @@ class I18nManager {
         this.translations = {
             fr: {
                 // États de connexion
-                connected: 'Mobile connecté',
+                connected: 'Mobile connecté : {deviceName}',
                 disconnected: 'Non connecté',
                 waitingMobile: 'En attente d\'un mobile',
                 
@@ -37,7 +37,7 @@ class I18nManager {
             },
             en: {
                 // Connection states
-                connected: 'Mobile connected',
+                connected: 'Mobile connected: {deviceName}',
                 disconnected: 'Not connected',
                 waitingMobile: 'Waiting for mobile',
                 

@@ -1,6 +1,6 @@
 # Historique des versions
 
-## v0.04 (2024-12-11)
+## v0.06 (2024-12-11)
 
 ### Améliorations
 - Refonte complète de l'interface utilisateur du serveur :

@@ -4,12 +4,15 @@ const os = require('os');
 
 const express = require('express');
 const app = express();
-const http = require('http').createServer(app);
-const io = require('socket.io')(http, {
+const http = require('http');
+const server = http.createServer(app);
+const io = require('socket.io')(server, {
     cors: {
-        origin: "*",
-        methods: ["GET", "POST"]
+        origin: ["http://localhost:3000", "file://"],
+        methods: ["GET", "POST"],
+        credentials: true
     },
+    transports: ['websocket', 'polling'],
     pingTimeout: 10000,  // 10 secondes de timeout
     pingInterval: 5000,  // ping toutes les 5 secondes
     reconnection: true,
@@ -57,10 +60,10 @@ function getNetworkInterfaces() {
 }
 
 // Configuration du serveur WebDAV
-const server = new webdav.WebDAVServer({
+const webdavServer = new webdav.WebDAVServer({
     port: 1900
 });
-server.start();
+webdavServer.start();
 log.info('📂 Serveur WebDAV démarré sur le port 1900');
 
 // Variables globales
@@ -68,6 +71,7 @@ let mappings = [];
 let mobileConnected = false;
 let mainWindow;
 let mobileSocket = null;  // Pour stocker la référence au socket mobile
+let webSocket = null;  // Pour stocker la référence au socket web
 
 // Configuration CORS
 app.use(cors());
@@ -184,34 +188,57 @@ io.on('connection', (socket) => {
     log.debug('📤 État initial envoyé');
 
     // Gestion de la connexion mobile
-    socket.on('mobile-connect', () => {
-        log.info('📱 Mobile connecté:', socket.id);
+    socket.on('mobile-connect', (deviceInfo) => {
+        console.log('[Server] New mobile connection from', socket.handshake.address, `(${deviceInfo.deviceName})`);
         socket.isMobile = true;
-        mobileConnected = true;
-        
-        // Si un ancien socket mobile existe, le déconnecter
-        if (mobileSocket && mobileSocket.id !== socket.id) {
-            log.debug('📱 Déconnexion de l\'ancien socket mobile:', mobileSocket.id);
-            mobileSocket.disconnect();
-        }
-        
-        mobileSocket = socket;  // Stocker la référence au socket mobile
-        log.debug('📱 Socket mobile enregistré:', socket.id);
-        
-        // Mise en place du keep-alive
-        socket.interval = setInterval(() => {
-            if (socket.connected) {
-                socket.emit('keep-alive');
-                log.debug('💓 Keep-alive envoyé au mobile');
-            }
-        }, 5000);
-        
-        io.emit('mobile-status', { connected: true });
-        // Notifier l'interface Electron
+        socket.deviceInfo = deviceInfo;
+        mobileSocket = socket;
+
+        // Informer tous les clients web que le mobile est connecté
+        io.emit('mobile-status', {
+            connected: true,
+            deviceInfo: deviceInfo
+        });
+
+        // Notifier l'interface Electron si elle existe
         if (mainWindow) {
-            mainWindow.webContents.send('mobile-status', { connected: true });
-            log.debug('📤 État mobile envoyé à l\'interface');
+            mainWindow.webContents.send('mobile-status', {
+                connected: true,
+                deviceInfo: deviceInfo
+            });
         }
+
+        // Écouter la déconnexion
+        socket.on('disconnect', () => {
+            console.log('[Server] Mobile disconnected');
+            mobileSocket = null;
+
+            // Informer tous les clients web que le mobile est déconnecté
+            io.emit('mobile-status', {
+                connected: false,
+                deviceInfo: null
+            });
+
+            if (mainWindow) {
+                mainWindow.webContents.send('mobile-status', {
+                    connected: false,
+                    deviceInfo: null
+                });
+            }
+        });
+    });
+
+    // Gestion de la connexion web
+    socket.on('web-connect', () => {
+        console.log('[Server] New web connection from', socket.handshake.address);
+        socket.isWeb = true;
+        webSocket = socket;
+
+        // Envoyer l'état actuel de la connexion mobile
+        socket.emit('mobile-status', {
+            connected: mobileSocket !== null,
+            deviceInfo: mobileSocket?.deviceInfo || null
+        });
     });
 
     // Gestion des mappings
@@ -448,7 +475,7 @@ function startServer(win) {
     const host = '0.0.0.0';
 
     try {
-        http.listen(port, host, () => {
+        server.listen(port, host, () => {
             const computerName = getComputerName();
             log.info(`🌐 Serveur HTTP démarré sur ${host}:${port}`);
             log.info(`💻 Nom du PC: ${computerName}`);
@@ -482,7 +509,4 @@ function startServer(win) {
 }
 
 // Exposer les fonctions nécessaires
-module.exports = {
-    start: startServer,
-    updateConfig: updateConfig
-};
+module.exports = { app, server, io, start: startServer, updateConfig: updateConfig };

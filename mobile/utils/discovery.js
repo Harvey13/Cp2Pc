@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import * as Network from 'expo-network';
+import * as Device from 'expo-device';
 
 // États de la machine d'état
 const DISCOVERY_STATES = {
@@ -38,6 +39,7 @@ class ServerDiscovery {
         this.keepaliveInterval = null;
         this.observers = new Set();
         this.message = MESSAGES.SCANNING;
+        this.deviceInfo = null;
         
         // Liste des dernières IPs serveur trouvées (dernier octet uniquement)
         this.lastFoundIPs = [];
@@ -81,6 +83,9 @@ class ServerDiscovery {
                 break;
             case DISCOVERY_STATES.SERVER_FOUND:
                 this.message = MESSAGES.SERVER_FOUND(this.serverName, this.serverIP);
+                if (global.socket) {
+                    global.socket.emit('mobile-connect', this.deviceInfo);
+                }
                 this.startKeepalive();
                 break;
             case DISCOVERY_STATES.NO_SERVER:
@@ -159,6 +164,7 @@ class ServerDiscovery {
                     this.serverAddress = foundLastIP.ip;
                     this.serverName = foundLastIP.pcName;
                     this.serverIP = foundLastIP.pcIP;
+                    this.deviceInfo = foundLastIP.deviceInfo;
                     this.saveFoundIP(foundLastIP.ip);
                     this.bScanning = false;
                     this.setState(DISCOVERY_STATES.SERVER_FOUND);
@@ -191,6 +197,7 @@ class ServerDiscovery {
                     this.serverAddress = found.ip;
                     this.serverName = found.pcName;
                     this.serverIP = found.pcIP;
+                    this.deviceInfo = found.deviceInfo;
                     this.saveFoundIP(found.ip);
                     this.bScanning = false;
                     this.setState(DISCOVERY_STATES.SERVER_FOUND);
@@ -236,7 +243,9 @@ class ServerDiscovery {
             const response = await fetch(`http://${ip}:${CONFIG.PORT}/ping`, {
                 signal: controller.signal,
                 headers: {
-                    'Accept': 'application/json'
+                    'Accept': 'application/json',
+                    'X-Device-Name': Device.deviceName || 'Unknown Device',
+                    'X-Device-Id': Device.deviceName + '_' + Device.modelName
                 }
             });
 
@@ -250,11 +259,18 @@ class ServerDiscovery {
             const data = await response.json();
             console.log(`[Discovery] Server found at ${ip}:`, data);
 
+            // Stocker les informations du device
+            const deviceInfo = {
+                deviceId: Device.deviceName + '_' + Device.modelName,
+                deviceName: Device.deviceName || 'Unknown Device'
+            };
+
             return {
                 found: true,
                 ip: ip,
                 pcName: data.name || 'Unknown',
-                pcIP: data.ip || ip
+                pcIP: data.ip || ip,
+                deviceInfo: deviceInfo
             };
         } catch (error) {
             if (error.name === 'AbortError') {
@@ -294,20 +310,28 @@ class ServerDiscovery {
         this.stopKeepalive();
 
         const sendPing = async () => {
+            if (!this.serverAddress) {
+                console.log('[Discovery] No server address for ping');
+                return;
+            }
+
             try {
                 console.log(`[Discovery] Sending ping to ${this.serverAddress}:${CONFIG.PORT}`);
                 const startTime = Date.now();
-                
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 2000); // Timeout de 2s
 
                 const response = await fetch(`http://${this.serverAddress}:${CONFIG.PORT}/ping`, {
-                    headers: { 'Accept': 'application/json' },
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Device-Name': Device.deviceName || 'Unknown Device',
+                        'X-Device-Id': Device.deviceName + '_' + Device.modelName
+                    },
                     signal: controller.signal
                 });
 
                 clearTimeout(timeoutId);
-                
+
                 if (!response.ok) {
                     console.log('[Discovery] Keepalive failed - server not responding');
                     this.handleServerLost();
@@ -349,6 +373,7 @@ class ServerDiscovery {
         this.serverAddress = null;
         this.serverName = null;
         this.serverIP = null;
+        this.deviceInfo = null;
         this.message = MESSAGES.NO_SERVER;
         this.setState(DISCOVERY_STATES.NO_SERVER);
         this.notifyObservers();  // Notifier les observers pour mettre à jour l'IHM
@@ -369,6 +394,7 @@ class ServerDiscovery {
     getServerAddress() { return this.serverAddress; }
     getServerName() { return this.serverName; }
     getServerIP() { return this.serverIP; }
+    getDeviceInfo() { return this.deviceInfo; }
     getMessage() { return this.message; }
 }
 
@@ -379,6 +405,7 @@ const useDiscovery = () => {
     const [serverIP, setServerIP] = useState(null);
     const [error, setError] = useState(null);
     const [message, setMessage] = useState(MESSAGES.SCANNING);
+    const [deviceInfo, setDeviceInfo] = useState(null);
     const discoveryRef = useRef(null);
 
     useEffect(() => {
@@ -395,6 +422,7 @@ const useDiscovery = () => {
             setServerAddress(discovery.getServerAddress());
             setServerName(discovery.getServerName());
             setServerIP(discovery.getServerIP());
+            setDeviceInfo(discovery.getDeviceInfo());
             setMessage(discovery.getMessage());
         };
 
@@ -414,6 +442,7 @@ const useDiscovery = () => {
         serverAddress,
         serverName,
         serverIP,
+        deviceInfo,
         error,
         message,
         startDiscovery: () => {

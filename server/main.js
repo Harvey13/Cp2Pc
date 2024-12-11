@@ -4,6 +4,8 @@ const fs = require('fs').promises;
 const express = require('express');
 const os = require('os');
 const config = require('./config');
+const http = require('http');
+const io = require('socket.io');
 
 // Détecter le mode développement
 const isDev = process.env.NODE_ENV === 'development' || process.env.DEBUG_PROD === 'true';
@@ -17,11 +19,11 @@ const DEFAULT_CONFIG = {
 };
 
 // État global
-let mainWindow = null;
+let expressApp = null;
+let mainWindow = null;  // Déclarer mainWindow globalement
 let configWindow = null;
 let mappingWindow = null;
 let currentConfig = { ...DEFAULT_CONFIG };
-let expressApp = null;
 let connectedMobileIP = null;
 let lastPingTime = null;
 let lastPingInterval = null;
@@ -29,45 +31,75 @@ let lastPingInterval = null;
 // Configuration
 const PING_TIMEOUT = 5000; // 5 secondes pour être plus tolérant
 
-// Initialiser Express
+// Initialiser Express et Socket.IO
 function createServer() {
     expressApp = express();
-    
+    const httpServer = http.createServer(expressApp);
+    const socketIO = io(httpServer, {
+        cors: {
+            origin: ["http://localhost:3000", "file://"],
+            methods: ["GET", "POST"],
+            credentials: true
+        }
+    });
+
     // Endpoint de ping pour la découverte et keepalive
     expressApp.get('/ping', (req, res) => {
-        const clientIP = req.ip;
-        const now = Date.now();
-        console.log(`[Server] Ping from ${clientIP} at ${now}`);
-        
-        // Si c'est un nouveau client ou une reconnexion
-        if (clientIP !== connectedMobileIP) {
-            console.log(`[Server] New mobile connection from ${clientIP}`);
+        const deviceName = req.headers['x-device-name'];
+        const deviceId = req.headers['x-device-id'];
+        const clientIp = req.ip;
+        console.log('[Server] Ping from', clientIp, `(${deviceName})`, 'at', Date.now());
+
+        // Mettre à jour l'état de connexion
+        if (deviceName) {
+            // Informer l'interface web via Socket.IO
+            socketIO.emit('mobile-status', {
+                connected: true,
+                deviceInfo: {
+                    deviceName: deviceName,
+                    deviceId: deviceId
+                }
+            });
+
+            // Informer l'interface Electron via IPC
+            console.log('[Server] mainWindow status:', mainWindow ? 'exists' : 'null');
+            if (mainWindow) {
+                mainWindow.webContents.send('mobile-connected', {
+                    ip: clientIp,
+                    deviceName: deviceName,
+                    deviceId: deviceId
+                });
+            }
         }
-        
-        // Mettre à jour l'état de connexion et le timestamp
-        connectedMobileIP = clientIP;
-        lastPingTime = now;
-        
-        // Notifier le frontend
-        if (mainWindow) {
-            mainWindow.webContents.send('mobile-connected', clientIP);
-        }
-        
-        // Répondre avec les infos du serveur pour le mobile
-        res.json({
-            status: 'ok',
+
+        res.json({ 
+            status: 'ok', 
+            time: Date.now(),
             name: os.hostname(),
             ip: getLocalIP(),
-            clientIP: clientIP
+            clientIP: clientIp
         });
     });
 
     // Servir les fichiers statiques
     expressApp.use(express.static(path.join(__dirname, 'public')));
     
+    // Gestion des connexions Socket.IO
+    socketIO.on('connection', (socket) => {
+        console.log('New client connected');
+        
+        socket.on('web-connect', () => {
+            console.log('Web client connected');
+        });
+        
+        socket.on('disconnect', () => {
+            console.log('Client disconnected');
+        });
+    });
+
     // Démarrer le serveur
     const port = 3000;
-    expressApp.listen(port, () => {
+    httpServer.listen(port, () => {
         console.log(`[Server] Listening on port ${port}`);
     });
 }
@@ -124,6 +156,10 @@ function createMainWindow() {
 
     mainWindow.removeMenu(); // Supprimer le menu
     mainWindow.loadFile(path.join(__dirname, 'public', 'index.html'));
+
+    mainWindow.on('closed', () => {
+        mainWindow = null;
+    });
 }
 
 function createConfigWindow() {
@@ -201,7 +237,6 @@ async function saveConfig(config) {
         const configPath = path.join(app.getPath('userData'), 'config.json');
         await fs.writeFile(configPath, JSON.stringify(config, null, 2));
         currentConfig = config;
-        mainWindow.webContents.send('config-updated', config);
         return true;
     } catch (error) {
         console.error('[Config] Erreur lors de la sauvegarde:', error);
@@ -230,7 +265,6 @@ function setupIPC() {
         config.language = language;
         const success = await saveConfig(config);
         if (success) {
-            mainWindow.webContents.send('language-changed', language);
         }
         return success;
     });
@@ -321,7 +355,6 @@ function setupIPC() {
             destPath: '',
             progress: 0
         };
-        mainWindow.webContents.send('mapping-added', newMapping);
     });
 
     ipcMain.on('start-copy', (event, mappings) => {
@@ -331,13 +364,6 @@ function setupIPC() {
             let progress = 0;
             const interval = setInterval(() => {
                 progress += 10;
-                mainWindow.webContents.send('mapping-progress', {
-                    id: mapping.id,
-                    progress: Math.min(progress, 100)
-                });
-                if (progress >= 100) {
-                    clearInterval(interval);
-                }
             }, 1000);
         });
     });

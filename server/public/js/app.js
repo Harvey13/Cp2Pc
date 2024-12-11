@@ -62,6 +62,14 @@ class ConnectionManager {
             this.updateStatus('waitingMobile');
         });
 
+        this.socket.on('mobile-status', (data) => {
+            if (data.connected) {
+                this.updateStatus('connected', data.deviceInfo);
+            } else {
+                this.updateStatus('disconnected');
+            }
+        });
+
         this.socket.on('config-updated', (config) => {
             if (config.language && window.i18nManager) {
                 window.i18nManager.setLanguage(config.language);
@@ -69,13 +77,16 @@ class ConnectionManager {
         });
     }
 
-    updateStatus(status) {
+    updateStatus(status, deviceInfo = null) {
         // Mettre à jour la LED
         this.statusLed.className = 'status-led ' + status;
 
         // Mettre à jour le texte avec la traduction
         if (window.i18nManager) {
-            this.statusElement.textContent = window.i18nManager.translate(status);
+            const params = deviceInfo ? { deviceName: deviceInfo.deviceName || 'Unknown Device' } : {};
+            const translatedText = window.i18nManager.translate(status, params);
+            console.log('Updating status:', status, 'with params:', params, '-> text:', translatedText);
+            this.statusElement.textContent = translatedText;
             this.statusElement.dataset.i18n = status;
         }
     }

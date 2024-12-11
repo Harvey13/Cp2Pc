@@ -3,6 +3,7 @@ import { StyleSheet, View, Text, TouchableOpacity, Modal } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import FolderList from './components/FolderList';
 import { useDiscovery } from './utils/discovery';
+import * as Device from 'expo-device';
 
 export default function App() {
   const { socket, isConnected, error, startDiscovery } = useDiscovery();
@@ -15,8 +16,11 @@ export default function App() {
       console.log('📱 Mobile: Socket initialisé');
       
       // Annoncer la connexion
-      socket.emit('mobile-connect');
-      console.log('📱 Mobile: Envoi mobile-connect');
+      socket.emit('mobile-connect', {
+        deviceId: Device.deviceName + '_' + Device.modelName,
+        deviceName: Device.deviceName || 'Unknown Device'
+      });
+      console.log('📱 Mobile: Envoi mobile-connect avec infos device');
 
       // Log tous les événements reçus
       const originalOn = socket.on;

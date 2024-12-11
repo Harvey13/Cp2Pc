@@ -1,7 +1,7 @@
 // État de l'application
 let appState = {
     connected: false,
-    mobileIP: null,
+    deviceInfo: null,
     mappings: [],  // Liste des mappings
     nextMappingId: 1
 };
@@ -16,13 +16,15 @@ const mappingEditor = document.getElementById('mappingEditor');
 
 // Mettre à jour l'interface utilisateur
 function updateUI() {
+    console.log('Updating UI with state:', appState);
     // Mise à jour du statut de connexion
     if (appState.connected) {
         connectionStatus.className = 'status-led connected';
-        statusText.textContent = `Mobile connecté (${appState.mobileIP})`;
+        const deviceName = appState.deviceInfo?.deviceName || 'Unknown Device';
+        statusText.textContent = window.i18nManager.translate('connected', { deviceName });
     } else {
         connectionStatus.className = 'status-led waiting';
-        statusText.textContent = 'En attente d\'un mobile';
+        statusText.textContent = window.i18nManager.translate('waitingMobile');
     }
 
     // Afficher l'état approprié selon les mappings
@@ -117,19 +119,39 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
+// Initialisation des événements Socket.IO
+const socket = io('http://localhost:3000', {
+    transports: ['websocket', 'polling'],
+    reconnectionAttempts: 5,
+    reconnectionDelay: 1000
+});
+
+socket.on('connect', () => {
+    console.log('Connected to server');
+    // Informer le serveur que c'est une connexion web
+    socket.emit('web-connect');
+});
+
+socket.on('connect_error', (error) => {
+    console.error('Socket.IO connection error:', error);
+});
+
+socket.on('mobile-status', (data) => {
+    console.log('Mobile status update:', data);
+    appState.connected = data.connected;
+    appState.deviceInfo = data.deviceInfo;
+    updateUI();
+});
+
 // Gestion des événements IPC avec Electron
 if (window.api) {
     // Événements de connexion
-    window.api.onMobileConnected((ip) => {
-        appState.connected = true;
-        appState.mobileIP = ip;
-        updateUI();
+    window.api.onMobileConnected(({ ip }) => {
+        console.log('Mobile connected via Electron:', ip);
     });
 
     window.api.onMobileDisconnected(() => {
-        appState.connected = false;
-        appState.mobileIP = null;
-        updateUI();
+        console.log('Mobile disconnected via Electron');
     });
 
     // Événements de mapping
