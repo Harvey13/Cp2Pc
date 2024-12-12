@@ -1,0 +1,512 @@
+diff --git a/package.json b/package.json
+index e55bc2e..a4d15a6 100644
+--- a/package.json
++++ b/package.json
+@@ -2,7 +2,7 @@
+   "name": "cp2pc",
+   "version": "0.2.0",
+   "description": "Cross-platform file synchronization application",
+-  "main": "server/src/main.js",
++  "main": "server/main.js",
+   "scripts": {
+     "start": "electron .",
+     "dev": "electron . --debug",
+diff --git a/server/config.js b/server/config.js
+index dcdb364..9550ddd 100644
+--- a/server/config.js
++++ b/server/config.js
+@@ -1,11 +1,28 @@
+ const isDev = process.env.NODE_ENV === 'development';
++const { LogTypes } = require('./utils/logger');
+ 
+ const config = {
+     development: isDev,
+     port: 3000,
+     devTools: isDev,
+     debug: isDev,
+-    logLevel: isDev ? 'debug' : 'info'
++    logLevel: isDev ? 'debug' : 'info',
++    logs: {
++        activeTypes: [
++            LogTypes.CONNECT,
++            LogTypes.UI,
++            LogTypes.MAPS,
++            LogTypes.ERROR,
++            LogTypes.CONFIG,
++            LogTypes.INFO,
++            LogTypes.DEBUG,
++            LogTypes.SERVER,
++            LogTypes.IPC
++        ]
++    },
++    maxFiles: 1000,
++    language: 'fr',
++    mappings: []
+ };
+ 
+ module.exports = config;
+diff --git a/server/main.js b/server/main.js
+index 13c598c..4a2c2ad 100644
+--- a/server/main.js
++++ b/server/main.js
+@@ -7,15 +7,40 @@ const config = require('./config');
+ const http = require('http');
+ const io = require('socket.io');
+ 
++// Fonction de log
++function console_log(type, ...args) {
++    const timestamp = new Date().toISOString();
++    console.log(`[${timestamp}][${type}]`, ...args);
++}
++
++// Types de logs
++const LogTypes = {
++    UI: 'UI',
++    CONNECT: 'CONNECT',
++    MAPS: 'MAPS',
++    CONFIG: 'CONFIG',
++    IPC: 'IPC',
++    SERVER: 'SERVER',
++    DEBUG: 'DEBUG',
++    INFO: 'INFO',
++    ERROR: 'ERROR'
++};
++
+ // Détecter le mode développement
+ const isDev = process.env.NODE_ENV === 'development' || process.env.DEBUG_PROD === 'true';
+-console.log('Running in development mode:', isDev);
++console_log(LogTypes.CONFIG, 'Running in development mode:', isDev);
++
++// Initialiser les types de logs actifs depuis la configuration
++// setLogTypes(config.logs.activeTypes);
+ 
+ // Configuration par défaut
+ const DEFAULT_CONFIG = {
+     maxFiles: 1000,
+     language: 'fr',
+-    mappings: []
++    mappings: [],
++    logs: {
++        activeTypes: [LogTypes.CONFIG, LogTypes.INFO]
++    }
+ };
+ 
+ // État global
+@@ -48,7 +73,7 @@ function createServer() {
+         const deviceName = req.headers['x-device-name'];
+         const deviceId = req.headers['x-device-id'];
+         const clientIp = req.ip;
+-        console.log('[Server] Ping from', clientIp, `(${deviceName})`, 'at', Date.now());
++        console_log(LogTypes.INFO, '[Server] Ping from', clientIp, `(${deviceName})`, 'at', Date.now());
+ 
+         // Mettre à jour l'état de connexion
+         if (deviceName) {
+@@ -57,12 +82,18 @@ function createServer() {
+                 connected: true,
+                 deviceInfo: {
+                     deviceName: deviceName,
+-                    deviceId: deviceId
++                    deviceId: deviceId,
++                    ip: clientIp
+                 }
+             });
+ 
+             // Informer l'interface Electron via IPC
+-            console.log('[Server] mainWindow status:', mainWindow ? 'exists' : 'null');
++            console_log(LogTypes.INFO, '[Server] Sending mobile connection to Electron window:', {
++                ip: clientIp,
++                deviceName: deviceName,
++                deviceId: deviceId
++            });
++            
+             if (mainWindow) {
+                 mainWindow.webContents.send('mobile-connected', {
+                     ip: clientIp,
+@@ -86,21 +117,21 @@ function createServer() {
+     
+     // Gestion des connexions Socket.IO
+     socketIO.on('connection', (socket) => {
+-        console.log('New client connected');
++        console_log(LogTypes.INFO, 'New client connected');
+         
+         socket.on('web-connect', () => {
+-            console.log('Web client connected');
++            console_log(LogTypes.INFO, 'Web client connected');
+         });
+         
+         socket.on('disconnect', () => {
+-            console.log('Client disconnected');
++            console_log(LogTypes.INFO, 'Client disconnected');
+         });
+     });
+ 
+     // Démarrer le serveur
+     const port = 3000;
+     httpServer.listen(port, () => {
+-        console.log(`[Server] Listening on port ${port}`);
++        console_log(LogTypes.INFO, `[Server] Listening on port ${port}`);
+     });
+ }
+ 
+@@ -112,7 +143,7 @@ function startConnectionCheck() {
+             lastPingInterval = now - lastPingTime;
+             // Si le dernier ping est plus vieux que PING_TIMEOUT
+             if (lastPingInterval > PING_TIMEOUT) {
+-                console.log(`[Server] Mobile connection timeout - Device: ${connectedMobileIP}, Last ping: ${lastPingTime}, Interval: ${lastPingInterval}ms`);
++                console_log(LogTypes.INFO, `[Server] Mobile connection timeout - Device: ${connectedMobileIP}, Last ping: ${lastPingTime}, Interval: ${lastPingInterval}ms`);
+                 if (mainWindow) {
+                     mainWindow.webContents.send('mobile-disconnected');
+                 }
+@@ -151,7 +182,7 @@ function createMainWindow() {
+     // En mode dev, ouvrir les devtools automatiquement
+     if (isDev) {
+         mainWindow.webContents.openDevTools();
+-        console.log('DevTools opened in development mode');
++        console_log(LogTypes.CONFIG, 'DevTools opened in development mode');
+     }
+ 
+     mainWindow.removeMenu(); // Supprimer le menu
+@@ -226,7 +257,7 @@ async function loadConfig() {
+         const data = await fs.readFile(configPath, 'utf8');
+         currentConfig = { ...DEFAULT_CONFIG, ...JSON.parse(data) };
+     } catch (error) {
+-        console.log('[Config] Fichier de configuration non trouvé, utilisation des valeurs par défaut');
++        console_log(LogTypes.CONFIG, '[Config] Fichier de configuration non trouvé, utilisation des valeurs par défaut');
+         currentConfig = { ...DEFAULT_CONFIG };
+     }
+     return currentConfig;
+@@ -239,7 +270,7 @@ async function saveConfig(config) {
+         currentConfig = config;
+         return true;
+     } catch (error) {
+-        console.error('[Config] Erreur lors de la sauvegarde:', error);
++        console_log(LogTypes.ERROR, '[Config] Erreur lors de la sauvegarde:', error);
+         return false;
+     }
+ }
+@@ -248,7 +279,7 @@ async function saveConfig(config) {
+ function setupIPC() {
+     // Configuration
+     ipcMain.handle('get-config', async () => {
+-        return await loadConfig();
++        return currentConfig;
+     });
+ 
+     ipcMain.handle('save-config', async (event, config) => {
+@@ -271,7 +302,7 @@ function setupIPC() {
+ 
+     // Fenêtres
+     ipcMain.on('open-config-window', () => {
+-        console.log('[Server] Ouverture fenêtre configuration');
++        console_log(LogTypes.INFO, '[Server] Ouverture fenêtre configuration');
+         if (!configWindow) {
+             createConfigWindow();
+         } else {
+@@ -285,14 +316,14 @@ function setupIPC() {
+ 
+     // Sélection de dossiers
+     ipcMain.handle('select-pc-folder', async (event) => {
+-        console.log('[IPC] Selecting PC folder');
++        console_log(LogTypes.INFO, '[IPC] Selecting PC folder');
+         const result = await dialog.showOpenDialog(BrowserWindow.fromWebContents(event.sender), {
+             properties: ['openDirectory']
+         });
+         
+         if (!result.canceled && result.filePaths.length > 0) {
+             const selectedPath = result.filePaths[0];
+-            console.log('[IPC] PC folder selected:', selectedPath);
++            console_log(LogTypes.INFO, '[IPC] PC folder selected:', selectedPath);
+             event.sender.send('pc-folder-selected', selectedPath);
+             return selectedPath;
+         }
+@@ -300,7 +331,7 @@ function setupIPC() {
+     });
+ 
+     ipcMain.handle('select-mobile-folder', async (event, mappingId) => {
+-        console.log('[IPC] Selecting mobile folder');
++        console_log(LogTypes.INFO, '[IPC] Selecting mobile folder');
+         // Pour l'instant, on utilise aussi un sélecteur de dossier local
+         const result = await dialog.showOpenDialog(BrowserWindow.fromWebContents(event.sender), {
+             properties: ['openDirectory']
+@@ -308,7 +339,7 @@ function setupIPC() {
+         
+         if (!result.canceled && result.filePaths.length > 0) {
+             const selectedPath = result.filePaths[0];
+-            console.log('[IPC] Mobile folder selected:', selectedPath);
++            console_log(LogTypes.INFO, '[IPC] Mobile folder selected:', selectedPath);
+             event.sender.send('mobile-folder-selected', selectedPath);
+             return selectedPath;
+         }
+@@ -346,6 +377,13 @@ function setupIPC() {
+         return config.mappings || [];
+     });
+ 
++    ipcMain.handle('delete-mapping', async (event, mappingId) => {
++        console_log(LogTypes.INFO, '[IPC] Demande de suppression du mapping:', mappingId);
++        currentConfig.mappings = currentConfig.mappings.filter(m => m.id !== mappingId);
++        await saveConfig(currentConfig);
++        return true;
++    });
++
+     // Gestion des mappings supplémentaires
+     ipcMain.on('add-mapping', () => {
+         const newMapping = {
+@@ -358,7 +396,7 @@ function setupIPC() {
+     });
+ 
+     ipcMain.on('start-copy', (event, mappings) => {
+-        console.log('[Server] Démarrage de la copie avec mappings:', mappings);
++        console_log(LogTypes.INFO, '[Server] Démarrage de la copie avec mappings:', mappings);
+         // Simuler la progression pour chaque mapping
+         mappings.forEach(mapping => {
+             let progress = 0;
+@@ -370,7 +408,7 @@ function setupIPC() {
+ 
+     // Gestion des erreurs
+     ipcMain.on('error', (event, error) => {
+-        console.error('[IPC] Erreur reçue:', error);
++        console_log(LogTypes.ERROR, '[IPC] Erreur reçue:', error);
+         dialog.showErrorBox('Erreur', error.message || 'Une erreur est survenue');
+     });
+ }
+diff --git a/server/preload.js b/server/preload.js
+index 3f736a3..1c0ca1a 100644
+--- a/server/preload.js
++++ b/server/preload.js
+@@ -1,4 +1,25 @@
+ const { contextBridge, ipcRenderer } = require('electron');
++const path = require('path');
++const config = require(path.join(__dirname, 'config'));
++
++// API exposée au renderer process
++contextBridge.exposeInMainWorld('logger', {
++    log: (type, ...args) => {
++        const timestamp = new Date().toISOString();
++        console.log(`[${timestamp}][${type}]`, ...args);
++    },
++    LogTypes: {
++        UI: 'UI',
++        CONNECT: 'CONNECT',
++        MAPS: 'MAPS',
++        CONFIG: 'CONFIG',
++        IPC: 'IPC',
++        SERVER: 'SERVER',
++        DEBUG: 'DEBUG',
++        INFO: 'INFO',
++        ERROR: 'ERROR'
++    }
++});
+ 
+ // API exposée au renderer process
+ contextBridge.exposeInMainWorld('electron', {
+@@ -127,19 +148,23 @@ contextBridge.exposeInMainWorld('api', {
+     openConfig: () => {
+         ipcRenderer.send('open-config-window');
+     },
+-
++    
+     addMapping: () => {
+         ipcRenderer.invoke('open-mapping-dialog');
+     },
+-
++    
++    deleteMapping: (mappingId) => {
++        return ipcRenderer.invoke('delete-mapping', mappingId);
++    },
++    
+     selectMobileFolder: () => {
+         return ipcRenderer.invoke('select-mobile-folder');
+     },
+-
++    
+     selectPCFolder: () => {
+         return ipcRenderer.invoke('select-pc-folder');
+     },
+-
++    
+     startCopy: (mappings) => {
+         console.log('[IPC] Demande démarrage copie avec mappings:', mappings);
+         ipcRenderer.send('start-copy', mappings);
+diff --git a/server/public/js/main.js b/server/public/js/main.js
+index f9f602f..df007aa 100644
+--- a/server/public/js/main.js
++++ b/server/public/js/main.js
+@@ -13,18 +13,22 @@ const configBtn = document.getElementById('configBtn');
+ const noMappingState = document.getElementById('noMappingState');
+ const withMappingsState = document.getElementById('withMappingsState');
+ const mappingEditor = document.getElementById('mappingEditor');
++const deviceName = document.getElementById('deviceName');
+ 
+ // Mettre à jour l'interface utilisateur
+ function updateUI() {
+-    console.log('Updating UI with state:', appState);
++    if (window.logger) {
++        window.logger.log(window.logger.LogTypes.UI, 'Updating UI with state:', appState);
++    }
+     // Mise à jour du statut de connexion
+     if (appState.connected) {
+         connectionStatus.className = 'status-led connected';
+-        const deviceName = appState.deviceInfo?.deviceName || 'Unknown Device';
+-        statusText.textContent = window.i18nManager.translate('connected', { deviceName });
++        connectionStatus.title = 'Connecté';
++        deviceName.textContent = appState.deviceInfo ? appState.deviceInfo.deviceName : 'Inconnu';
+     } else {
+-        connectionStatus.className = 'status-led waiting';
+-        statusText.textContent = window.i18nManager.translate('waitingMobile');
++        connectionStatus.className = 'status-led disconnected';
++        connectionStatus.title = 'Déconnecté';
++        deviceName.textContent = 'Non connecté';
+     }
+ 
+     // Afficher l'état approprié selon les mappings
+@@ -127,17 +131,23 @@ const socket = io('http://localhost:3000', {
+ });
+ 
+ socket.on('connect', () => {
+-    console.log('Connected to server');
++    if (window.logger) {
++        window.logger.log(window.logger.LogTypes.CONNECT, 'Connected to server');
++    }
+     // Informer le serveur que c'est une connexion web
+     socket.emit('web-connect');
+ });
+ 
+ socket.on('connect_error', (error) => {
+-    console.error('Socket.IO connection error:', error);
++    if (window.logger) {
++        window.logger.log(window.logger.LogTypes.ERROR, 'Socket.IO connection error:', error);
++    }
+ });
+ 
+ socket.on('mobile-status', (data) => {
+-    console.log('Mobile status update:', data);
++    if (window.logger) {
++        window.logger.log(window.logger.LogTypes.CONNECT, 'Mobile status update:', data);
++    }
+     appState.connected = data.connected;
+     appState.deviceInfo = data.deviceInfo;
+     updateUI();
+@@ -146,12 +156,30 @@ socket.on('mobile-status', (data) => {
+ // Gestion des événements IPC avec Electron
+ if (window.api) {
+     // Événements de connexion
+-    window.api.onMobileConnected(({ ip }) => {
+-        console.log('Mobile connected via Electron:', ip);
++    window.api.onMobileConnected((event, data) => {
++        if (window.logger) {
++            window.logger.log(window.logger.LogTypes.CONNECT, 'Mobile connected via Electron:', {
++                ip: data.ip,
++                deviceName: data.deviceName,
++                deviceId: data.deviceId
++            });
++        }
++        appState.connected = true;
++        appState.deviceInfo = {
++            deviceName: data.deviceName,
++            deviceId: data.deviceId,
++            ip: data.ip
++        };
++        updateUI();
+     });
+ 
+     window.api.onMobileDisconnected(() => {
+-        console.log('Mobile disconnected via Electron');
++        if (window.logger) {
++            window.logger.log(window.logger.LogTypes.CONNECT, 'Mobile disconnected via Electron');
++        }
++        appState.connected = false;
++        appState.deviceInfo = null;
++        updateUI();
+     });
+ 
+     // Événements de mapping
+diff --git a/server/utils/logger.js b/server/utils/logger.js
+index 5fc872c..91a70ca 100644
+--- a/server/utils/logger.js
++++ b/server/utils/logger.js
+@@ -1,26 +1,67 @@
+ // Système de logging avec encodage UTF-8 et couleurs
+ const isDevelopment = process.env.NODE_ENV === 'development';
+ 
+-const log = {
+-    info: (...args) => {
+-        const message = args.map(arg => 
+-            typeof arg === 'string' ? arg : JSON.stringify(arg)
+-        );
+-        console.log('\x1b[36m%s\x1b[0m', '[INFO]', ...message);
+-    },
+-    error: (...args) => {
+-        const message = args.map(arg => 
+-            typeof arg === 'string' ? arg : JSON.stringify(arg)
+-        );
+-        console.error('\x1b[31m%s\x1b[0m', '[ERROR]', ...message);
+-    },
+-    debug: (...args) => {
+-        if (!isDevelopment) return; // N'affiche les logs debug qu'en mode development
++// Types de logs disponibles
++const LogTypes = {
++    UI: 'UI',
++    CONNECT: 'CONNECT',
++    MAPS: 'MAPS',
++    CONFIG: 'CONFIG',
++    IPC: 'IPC',
++    SERVER: 'SERVER',
++    DEBUG: 'DEBUG',
++    INFO: 'INFO',
++    ERROR: 'ERROR'
++};
++
++// Configuration active des logs
++let activeLogTypes = new Set([LogTypes.CONNECT, LogTypes.UI, LogTypes.MAPS, LogTypes.INFO, LogTypes.ERROR]); // Par défaut
++
++// Fonction pour activer/désactiver des types de logs
++function setLogTypes(types) {
++    if (!Array.isArray(types)) {
++        throw new Error('Types must be an array of LogTypes values');
++    }
++    activeLogTypes = new Set(types);
++}
++
++// Fonction de log principale
++function console_log(type, ...args) {
++    if (activeLogTypes.has(type)) {
+         const message = args.map(arg => 
+             typeof arg === 'string' ? arg : JSON.stringify(arg)
+         );
+-        console.log('\x1b[33m%s\x1b[0m', '[DEBUG]', ...message);
++        switch (type) {
++            case LogTypes.INFO:
++                console.log('\x1b[36m%s\x1b[0m', `[${type}]`, ...message);
++                break;
++            case LogTypes.ERROR:
++                console.error('\x1b[31m%s\x1b[0m', `[${type}]`, ...message);
++                break;
++            case LogTypes.DEBUG:
++                if (!isDevelopment) return; // N'affiche les logs debug qu'en mode development
++                console.log('\x1b[33m%s\x1b[0m', `[${type}]`, ...message);
++                break;
++            default:
++                console.log(`[${type}]`, ...message);
++        }
+     }
+-};
++}
+ 
+-module.exports = log;
++// Fonction pour obtenir les types de logs actifs
++function getActiveLogTypes() {
++    return Array.from(activeLogTypes);
++}
++
++// Fonction pour vérifier si un type de log est actif
++function isLogTypeActive(type) {
++    return activeLogTypes.has(type);
++}
++
++module.exports = {
++    LogTypes,
++    console_log,
++    setLogTypes,
++    getActiveLogTypes,
++    isLogTypeActive
++};

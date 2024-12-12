@@ -3,44 +3,62 @@ const path = require('path');
 const fs = require('fs').promises;
 const express = require('express');
 const os = require('os');
-const config = require('./config');
 const http = require('http');
-const io = require('socket.io');
+const { Server } = require('socket.io');
+const logger = require(path.join(__dirname, 'utils', 'logger'));
+const { LogTypes } = logger;
 
 // Détecter le mode développement
 const isDev = process.env.NODE_ENV === 'development' || process.env.DEBUG_PROD === 'true';
-console.log('Running in development mode:', isDev);
+logger.console_log(LogTypes.CONFIG, 'Running in development mode:', isDev);
 
-// Configuration par défaut
-const DEFAULT_CONFIG = {
+// Variables globales
+let mainWindow = null;
+let configWindow = null;
+let expressApp = null;
+let io = null;
+let connectedDevice = null;
+let lastPingTime = null;
+let currentConfig = {
     maxFiles: 1000,
     language: 'fr',
     mappings: []
 };
 
-// État global
-let expressApp = null;
-let mainWindow = null;  // Déclarer mainWindow globalement
-let configWindow = null;
-let mappingWindow = null;
-let currentConfig = { ...DEFAULT_CONFIG };
-let connectedMobileIP = null;
-let lastPingTime = null;
-let lastPingInterval = null;
+const PING_TIMEOUT = 10000; // 10 secondes
 
-// Configuration
-const PING_TIMEOUT = 5000; // 5 secondes pour être plus tolérant
+// Configuration par défaut
+const DEFAULT_CONFIG = {
+    maxFiles: 1000,
+    language: 'fr',
+    mappings: [],
+    logs: {
+        activeTypes: [LogTypes.CONFIG, LogTypes.INFO, LogTypes.ERROR]
+    }
+};
 
 // Initialiser Express et Socket.IO
 function createServer() {
     expressApp = express();
-    const httpServer = http.createServer(expressApp);
-    const socketIO = io(httpServer, {
-        cors: {
-            origin: ["http://localhost:3000", "file://"],
-            methods: ["GET", "POST"],
-            credentials: true
-        }
+    const server = http.createServer(expressApp);
+    
+    // Servir les fichiers statiques
+    expressApp.use(express.static(path.join(__dirname, 'public')));
+
+    // Configuration de Socket.IO
+    io = new Server(server);
+
+    // Gestion des connexions Socket.IO
+    io.on('connection', (socket) => {
+        logger.console_log(LogTypes.CONNECT, 'New client connected');
+        
+        socket.on('web-connect', () => {
+            logger.console_log(LogTypes.CONNECT, 'Web client connected');
+        });
+        
+        socket.on('disconnect', () => {
+            logger.console_log(LogTypes.CONNECT, 'Client disconnected');
+        });
     });
 
     // Endpoint de ping pour la découverte et keepalive
@@ -48,78 +66,70 @@ function createServer() {
         const deviceName = req.headers['x-device-name'];
         const deviceId = req.headers['x-device-id'];
         const clientIp = req.ip;
-        console.log('[Server] Ping from', clientIp, `(${deviceName})`, 'at', Date.now());
 
-        // Mettre à jour l'état de connexion
-        if (deviceName) {
-            // Informer l'interface web via Socket.IO
-            socketIO.emit('mobile-status', {
-                connected: true,
-                deviceInfo: {
-                    deviceName: deviceName,
-                    deviceId: deviceId
-                }
-            });
+        // Mettre à jour le temps du dernier ping
+        lastPingTime = Date.now();
+        
+        // Mettre à jour les informations du device connecté
+        if (deviceName && deviceId) {
+            connectedDevice = {
+                deviceName,
+                deviceId,
+                ip: clientIp,
+                lastPing: lastPingTime
+            };
+        }
 
-            // Informer l'interface Electron via IPC
-            console.log('[Server] mainWindow status:', mainWindow ? 'exists' : 'null');
-            if (mainWindow) {
-                mainWindow.webContents.send('mobile-connected', {
-                    ip: clientIp,
-                    deviceName: deviceName,
-                    deviceId: deviceId
-                });
-            }
+        // Informer l'interface web via Socket.IO
+        io.emit('mobile-status', {
+            connected: true,
+            deviceInfo: connectedDevice
+        });
+
+        // Informer l'interface Electron via IPC
+        if (mainWindow) {
+            mainWindow.webContents.send('mobile-connected', connectedDevice);
         }
 
         res.json({ 
             status: 'ok', 
-            time: Date.now(),
+            time: lastPingTime,
             name: os.hostname(),
             ip: getLocalIP(),
             clientIP: clientIp
         });
     });
 
-    // Servir les fichiers statiques
-    expressApp.use(express.static(path.join(__dirname, 'public')));
-    
-    // Gestion des connexions Socket.IO
-    socketIO.on('connection', (socket) => {
-        console.log('New client connected');
-        
-        socket.on('web-connect', () => {
-            console.log('Web client connected');
-        });
-        
-        socket.on('disconnect', () => {
-            console.log('Client disconnected');
-        });
-    });
-
     // Démarrer le serveur
     const port = 3000;
-    httpServer.listen(port, () => {
-        console.log(`[Server] Listening on port ${port}`);
+    server.listen(port, () => {
+        logger.console_log(LogTypes.SERVER, `Server listening on port ${port}`);
     });
+
+    return server;
 }
 
-// Vérifier la connexion mobile périodiquement
+// Vérifier périodiquement la connexion mobile
 function startConnectionCheck() {
     setInterval(() => {
         const now = Date.now();
-        if (lastPingTime && connectedMobileIP) {
-            lastPingInterval = now - lastPingTime;
-            // Si le dernier ping est plus vieux que PING_TIMEOUT
-            if (lastPingInterval > PING_TIMEOUT) {
-                console.log(`[Server] Mobile connection timeout - Device: ${connectedMobileIP}, Last ping: ${lastPingTime}, Interval: ${lastPingInterval}ms`);
-                if (mainWindow) {
-                    mainWindow.webContents.send('mobile-disconnected');
-                }
-                connectedMobileIP = null;
+        if (lastPingTime && (now - lastPingTime > PING_TIMEOUT)) {
+            // Le mobile n'a pas pingé depuis trop longtemps
+            lastPingTime = null;
+            connectedDevice = null;
+            
+            // Informer l'interface web
+            io?.emit('mobile-status', {
+                connected: false,
+                deviceInfo: null
+            });
+
+            // Informer l'interface Electron
+            if (mainWindow) {
+                mainWindow.webContents.send('mobile-disconnected');
             }
         }
-    }, 1000); // Vérification toutes les secondes
+    }, 1000); // Vérifier toutes les secondes
 }
 
 // Obtenir l'IP locale
@@ -151,7 +161,7 @@ function createMainWindow() {
     // En mode dev, ouvrir les devtools automatiquement
     if (isDev) {
         mainWindow.webContents.openDevTools();
-        console.log('DevTools opened in development mode');
+        logger.console_log(LogTypes.CONFIG, 'DevTools opened in development mode');
     }
 
     mainWindow.removeMenu(); // Supprimer le menu
@@ -177,17 +187,22 @@ function createConfigWindow() {
             nodeIntegration: false,
             contextIsolation: true,
             preload: path.join(__dirname, 'preload.js'),
-            devTools: true // Toujours activer les devtools
+            devTools: true
         }
     });
 
     // En mode dev, ouvrir les devtools automatiquement
     if (isDev) {
         configWindow.webContents.openDevTools();
+        logger.console_log(LogTypes.CONFIG, 'Opening DevTools in config window');
     }
 
     configWindow.removeMenu(); // Supprimer le menu
-    configWindow.loadFile(path.join(__dirname, 'public', 'config.html'));
+    
+    const configPath = path.join(__dirname, 'public', 'config.html');
+    logger.console_log(LogTypes.CONFIG, 'Loading config window from:', configPath);
+    
+    configWindow.loadFile(configPath);
 
     configWindow.on('closed', () => {
         configWindow = null;
@@ -226,7 +241,7 @@ async function loadConfig() {
         const data = await fs.readFile(configPath, 'utf8');
         currentConfig = { ...DEFAULT_CONFIG, ...JSON.parse(data) };
     } catch (error) {
-        console.log('[Config] Fichier de configuration non trouvé, utilisation des valeurs par défaut');
+        logger.console_log(LogTypes.CONFIG, '[Config] Fichier de configuration non trouvé, utilisation des valeurs par défaut');
         currentConfig = { ...DEFAULT_CONFIG };
     }
     return currentConfig;
@@ -239,7 +254,7 @@ async function saveConfig(config) {
         currentConfig = config;
         return true;
     } catch (error) {
-        console.error('[Config] Erreur lors de la sauvegarde:', error);
+        logger.console_log(LogTypes.ERROR, '[Config] Erreur lors de la sauvegarde:', error);
         return false;
     }
 }
@@ -247,31 +262,8 @@ async function saveConfig(config) {
 // Gestion des IPC
 function setupIPC() {
     // Configuration
-    ipcMain.handle('get-config', async () => {
-        return await loadConfig();
-    });
-
-    ipcMain.handle('save-config', async (event, config) => {
-        return await saveConfig(config);
-    });
-
-    ipcMain.handle('get-current-language', async () => {
-        const config = await loadConfig();
-        return config.language || 'fr';
-    });
-
-    ipcMain.handle('set-language', async (event, language) => {
-        const config = await loadConfig();
-        config.language = language;
-        const success = await saveConfig(config);
-        if (success) {
-        }
-        return success;
-    });
-
-    // Fenêtres
-    ipcMain.on('open-config-window', () => {
-        console.log('[Server] Ouverture fenêtre configuration');
+    ipcMain.on('open-config', () => {
+        logger.console_log(LogTypes.INFO, 'Opening config window');
         if (!configWindow) {
             createConfigWindow();
         } else {
@@ -279,98 +271,98 @@ function setupIPC() {
         }
     });
 
-    ipcMain.handle('open-mapping-dialog', () => {
-        createMappingWindow();
-    });
-
-    // Sélection de dossiers
-    ipcMain.handle('select-pc-folder', async (event) => {
-        console.log('[IPC] Selecting PC folder');
-        const result = await dialog.showOpenDialog(BrowserWindow.fromWebContents(event.sender), {
-            properties: ['openDirectory']
-        });
-        
-        if (!result.canceled && result.filePaths.length > 0) {
-            const selectedPath = result.filePaths[0];
-            console.log('[IPC] PC folder selected:', selectedPath);
-            event.sender.send('pc-folder-selected', selectedPath);
-            return selectedPath;
-        }
-        return null;
-    });
-
-    ipcMain.handle('select-mobile-folder', async (event, mappingId) => {
-        console.log('[IPC] Selecting mobile folder');
-        // Pour l'instant, on utilise aussi un sélecteur de dossier local
-        const result = await dialog.showOpenDialog(BrowserWindow.fromWebContents(event.sender), {
-            properties: ['openDirectory']
-        });
-        
-        if (!result.canceled && result.filePaths.length > 0) {
-            const selectedPath = result.filePaths[0];
-            console.log('[IPC] Mobile folder selected:', selectedPath);
-            event.sender.send('mobile-folder-selected', selectedPath);
-            return selectedPath;
-        }
-        return null;
-    });
-
-    ipcMain.handle('save-mapping', async (event, mapping) => {
-        const config = await loadConfig();
-        if (!config.mappings) {
-            config.mappings = [];
-        }
-        config.mappings.push(mapping);
-        return await saveConfig(config);
-    });
-
-    ipcMain.handle('validate-path', async (event, path) => {
-        try {
-            await fs.access(path);
-            return true;
-        } catch {
-            return false;
-        }
-    });
-
-    ipcMain.handle('close-window', (event) => {
+    ipcMain.on('close-window', (event) => {
+        logger.console_log(LogTypes.INFO, 'Closing window');
         const win = BrowserWindow.fromWebContents(event.sender);
         if (win) {
             win.close();
         }
     });
 
-    // Gestion des mappings
-    ipcMain.handle('get-mappings', async () => {
-        const config = await loadConfig();
-        return config.mappings || [];
-    });
-
-    // Gestion des mappings supplémentaires
-    ipcMain.on('add-mapping', () => {
-        const newMapping = {
-            id: Date.now(),
-            title: 'Nouveau mapping',
-            sourcePath: '',
-            destPath: '',
-            progress: 0
+    // Vérification du statut mobile
+    ipcMain.handle('get-mobile-status', () => {
+        logger.console_log(LogTypes.INFO, 'Checking mobile status');
+        return {
+            connected: !!connectedDevice,
+            deviceInfo: connectedDevice
         };
     });
 
-    ipcMain.on('start-copy', (event, mappings) => {
-        console.log('[Server] Démarrage de la copie avec mappings:', mappings);
-        // Simuler la progression pour chaque mapping
-        mappings.forEach(mapping => {
-            let progress = 0;
-            const interval = setInterval(() => {
-                progress += 10;
-            }, 1000);
+    ipcMain.handle('get-mappings', async () => {
+        return currentConfig.mappings || [];
+    });
+
+    ipcMain.handle('get-config', async () => {
+        return currentConfig;
+    });
+
+    ipcMain.handle('get-current-language', async () => {
+        return currentConfig.language || 'fr';
+    });
+
+    // Sélection de dossiers
+    ipcMain.handle('select-mobile-folder', async (event) => {
+        logger.console_log(LogTypes.INFO, 'Selecting mobile folder');
+        const result = await dialog.showOpenDialog({
+            properties: ['openDirectory']
         });
+        if (!result.canceled && result.filePaths.length > 0) {
+            const selectedPath = result.filePaths[0];
+            event.sender.send('mobile-folder-selected', selectedPath);
+            return selectedPath;
+        }
+        return null;
+    });
+
+    ipcMain.handle('select-pc-folder', async (event) => {
+        logger.console_log(LogTypes.INFO, 'Selecting PC folder');
+        const result = await dialog.showOpenDialog({
+            properties: ['openDirectory']
+        });
+        if (!result.canceled && result.filePaths.length > 0) {
+            const selectedPath = result.filePaths[0];
+            event.sender.send('pc-folder-selected', selectedPath);
+            return selectedPath;
+        }
+        return null;
+    });
+
+    // Gestion des mappings
+    ipcMain.on('add-mapping', (event) => {
+        logger.console_log(LogTypes.MAPS, 'Adding new mapping');
+        if (mainWindow) {
+            mainWindow.webContents.send('mapping-added');
+        }
+    });
+
+    ipcMain.on('delete-mapping', (event, id) => {
+        logger.console_log(LogTypes.MAPS, 'Deleting mapping:', id);
+        if (mainWindow) {
+            mainWindow.webContents.send('mapping-delete', id);
+        }
+    });
+
+    ipcMain.on('mapping-update', (event, mapping) => {
+        logger.console_log(LogTypes.MAPS, 'Updating mapping:', mapping);
+        if (mainWindow) {
+            mainWindow.webContents.send('mapping-update', mapping);
+        }
+    });
+
+    // Gestion des dossiers
+    ipcMain.handle('select-folder', async () => {
+        const result = await dialog.showOpenDialog({
+            properties: ['openDirectory']
+        });
+        if (!result.canceled && result.filePaths.length > 0) {
+            return result.filePaths[0];
+        }
+        return null;
     });
 
     // Gestion des erreurs
     ipcMain.on('error', (event, error) => {
-        console.error('[IPC] Erreur reçue:', error);
+        logger.console_log(LogTypes.ERROR, 'Error received:', error);
         dialog.showErrorBox('Erreur', error.message || 'Une erreur est survenue');
     });
 }

@@ -1,5 +1,23 @@
 # Historique des versions
 
+## v0.07 (2024-12-12)
+
+### Améliorations
+- Correction de l'affichage de l'éditeur de mapping :
+  - Correction du positionnement et de la visibilité de l'éditeur
+  - Amélioration de l'overlay et de l'interaction utilisateur
+  - Ajout d'animations fluides pour l'ouverture/fermeture
+- Implémentation de la sélection des dossiers :
+  - Intégration des sélecteurs de dossiers pour mobile et PC
+  - Gestion des événements de sélection via l'API Electron
+  - Amélioration de l'interface utilisateur des champs de sélection
+
+### Technique
+- Refactoring des composants Web :
+  - Optimisation des styles CSS avec une meilleure spécificité
+  - Amélioration de la gestion des états dans MappingEditor
+  - Ajout de logs détaillés pour faciliter le débogage
+
 ## v0.06 (2024-12-11)
 
 ### Améliorations

@@ -1,174 +1,166 @@
-// État de l'application
-let appState = {
-    connected: false,
-    deviceInfo: null,
-    mappings: [],  // Liste des mappings
-    nextMappingId: 1
-};
+// État global
+let socket = null;
+let deviceInfo = null;
 
-// Éléments DOM
-const connectionStatus = document.getElementById('connectionStatus');
-const statusText = document.getElementById('statusText');
-const configBtn = document.getElementById('configBtn');
-const noMappingState = document.getElementById('noMappingState');
-const withMappingsState = document.getElementById('withMappingsState');
-const mappingEditor = document.getElementById('mappingEditor');
+// Fonction de mise à jour du statut de connexion
+function updateConnectionStatus(status) {
+    const statusLed = document.getElementById('connectionStatus');
+    const statusText = document.getElementById('statusText');
+    const deviceNameElement = document.getElementById('deviceName');
 
-// Mettre à jour l'interface utilisateur
-function updateUI() {
-    console.log('Updating UI with state:', appState);
-    // Mise à jour du statut de connexion
-    if (appState.connected) {
-        connectionStatus.className = 'status-led connected';
-        const deviceName = appState.deviceInfo?.deviceName || 'Unknown Device';
-        statusText.textContent = window.i18nManager.translate('connected', { deviceName });
+    // Réinitialiser toutes les classes d'état
+    statusLed.classList.remove('connected', 'disconnected', 'waiting');
+
+    if (status.connected) {
+        statusLed.classList.add('connected');
+        statusText.textContent = 'Mobile connecté';
+        if (status.deviceInfo) {
+            deviceNameElement.textContent = status.deviceInfo.deviceName || 'Appareil inconnu';
+        }
     } else {
-        connectionStatus.className = 'status-led waiting';
-        statusText.textContent = window.i18nManager.translate('waitingMobile');
+        statusLed.classList.add('disconnected');
+        statusText.textContent = 'Non connecté';
+        deviceNameElement.textContent = 'En attente d\'un mobile';
     }
+}
 
-    // Afficher l'état approprié selon les mappings
-    if (appState.mappings.length === 0) {
-        noMappingState.style.display = 'block';
-        withMappingsState.style.display = 'none';
-    } else {
-        noMappingState.style.display = 'none';
+// Fonction pour mettre à jour la visibilité des vues
+function updateViewsVisibility(mappings) {
+    const noMappingView = document.getElementById('noMappingState');
+    const withMappingsState = document.getElementById('withMappingsState');
+    
+    if (mappings && mappings.length > 0) {
+        noMappingView.style.display = 'none';
         withMappingsState.style.display = 'block';
-        withMappingsState.updateMappings(appState.mappings);
-    }
-}
-
-// Créer un nouveau mapping
-function createMapping() {
-    const mapping = {
-        id: appState.nextMappingId++,
-        title: 'Nouveau mapping',
-        sourcePath: '',
-        destPath: '',
-        progress: 0
-    };
-    appState.mappings.push(mapping);
-    updateUI();
-    return mapping;
-}
-
-// Supprimer un mapping
-function deleteMapping(id) {
-    const index = appState.mappings.findIndex(m => m.id === parseInt(id));
-    if (index !== -1) {
-        appState.mappings.splice(index, 1);
-        updateUI();
-    }
-}
-
-// Mettre à jour un mapping
-function updateMapping(mappingData) {
-    const index = appState.mappings.findIndex(m => m.id === mappingData.id);
-    if (index !== -1) {
-        appState.mappings[index] = { ...appState.mappings[index], ...mappingData };
     } else {
-        appState.mappings.push({ ...mappingData, id: appState.nextMappingId++, progress: 0 });
-    }
-    updateUI();
-}
-
-// Mettre à jour la progression d'un mapping
-function updateMappingProgress(id, progress) {
-    const mapping = appState.mappings.find(m => m.id === id);
-    if (mapping) {
-        mapping.progress = progress;
-        withMappingsState.updateMappings(appState.mappings);
+        noMappingView.style.display = 'block';
+        withMappingsState.style.display = 'none';
     }
 }
 
-// Gérer l'ouverture de l'éditeur de mapping
-function openMappingEditor(mapping = null) {
-    mappingEditor.style.display = 'block';
-    mappingEditor.setMapping(mapping);
-}
+document.addEventListener('DOMContentLoaded', async () => {
+    // Initialiser les composants s'ils ne sont pas déjà définis
+    if (!customElements.get('mapping-editor')) {
+        customElements.define('mapping-editor', MappingEditor);
+    }
+    if (!customElements.get('no-mapping-view')) {
+        customElements.define('no-mapping-view', NoMappingView);
+    }
+    if (!customElements.get('mapping-list')) {
+        customElements.define('mapping-list', MappingList);
+    }
 
-// Initialisation des événements
-document.addEventListener('DOMContentLoaded', () => {
-    // Événements de l'éditeur de mapping
-    mappingEditor.addEventListener('save', (e) => {
-        updateMapping(e.detail);
-        mappingEditor.style.display = 'none';
-    });
-
-    mappingEditor.addEventListener('close', () => {
-        mappingEditor.style.display = 'none';
-    });
-
-    // Événement du bouton de configuration
-    configBtn.addEventListener('click', () => {
-        if (window.api) {
+    // Configurer le bouton de configuration
+    const configBtn = document.getElementById('configBtn');
+    if (configBtn && window.api) {
+        configBtn.addEventListener('click', () => {
+            console.log('Opening config window');
             window.api.openConfig();
+        });
+    }
+
+    const mappingEditor = document.querySelector('mapping-editor');
+    const noMappingView = document.querySelector('no-mapping-view');
+    const mappingList = document.querySelector('mapping-list');
+
+    // Vérifier l'état initial de la connexion
+    if (window.api) {
+        try {
+            const status = await window.api.checkConnectionStatus();
+            updateConnectionStatus(status);
+            
+            // Charger les mappings initiaux et mettre à jour la visibilité
+            const mappings = await window.api.getMappings();
+            updateViewsVisibility(mappings);
+        } catch (error) {
+            console.error('Erreur lors de la vérification du statut:', error);
+        }
+    }
+
+    // Écouter les événements de connexion
+    if (window.api) {
+        window.api.onMobileConnected((data) => {
+            console.log('Mobile connecté:', data);
+            updateConnectionStatus({ connected: true, deviceInfo: data });
+        });
+
+        window.api.onMobileDisconnected(() => {
+            console.log('Mobile déconnecté');
+            updateConnectionStatus({ connected: false });
+        });
+
+        window.api.onMobileStatus((status) => {
+            console.log('Statut mobile mis à jour:', status);
+            updateConnectionStatus(status);
+        });
+    }
+
+    // Gérer l'ajout du premier mapping
+    noMappingView.addEventListener('add-first-mapping', () => {
+        console.log('Adding first mapping');
+        const mappingEditor = document.querySelector('mapping-editor');
+        if (mappingEditor) {
+            mappingEditor.setMapping(null);
+            mappingEditor.show();
+        } else {
+            console.error('Mapping editor not found');
         }
     });
 
-    // Cacher l'éditeur par défaut
-    mappingEditor.style.display = 'none';
+    // Gérer l'ajout d'un nouveau mapping
+    mappingList.addEventListener('add-mapping', () => {
+        console.log('Adding new mapping');
+        mappingEditor.setMapping(null);
+    });
 
-    // Charger les mappings existants
-    if (window.api) {
-        window.api.getMappings().then(mappings => {
-            appState.mappings = mappings;
-            appState.nextMappingId = Math.max(...mappings.map(m => m.id), 0) + 1;
-            updateUI();
-        });
-    }
+    // Gérer la sauvegarde d'un mapping
+    mappingEditor.addEventListener('save', async (event) => {
+        console.log('Saving mapping:', event.detail);
+        const mapping = event.detail;
+        
+        try {
+            if (mapping.id) {
+                // Mettre à jour un mapping existant
+                await window.api.updateMapping(mapping);
+            } else {
+                // Créer un nouveau mapping
+                await window.api.createMapping(mapping);
+            }
+            
+            // Rafraîchir la liste des mappings et mettre à jour la visibilité
+            const mappings = await window.api.getMappings();
+            updateViewsVisibility(mappings);
+            mappingList.loadMappings();
+        } catch (error) {
+            console.error('Error saving mapping:', error);
+            // TODO: Afficher un message d'erreur à l'utilisateur
+        }
+    });
+
+    // Gérer l'édition d'un mapping existant
+    mappingList.addEventListener('edit-mapping', (event) => {
+        console.log('Editing mapping:', event.detail);
+        mappingEditor.setMapping(event.detail);
+    });
+
+    // Gérer la suppression d'un mapping
+    mappingList.addEventListener('delete-mapping', async (event) => {
+        console.log('Deleting mapping:', event.detail);
+        const mapping = event.detail;
+        
+        try {
+            await window.api.deleteMapping(mapping.id);
+            const mappings = await window.api.getMappings();
+            updateViewsVisibility(mappings);
+            mappingList.loadMappings();
+        } catch (error) {
+            console.error('Error deleting mapping:', error);
+            // TODO: Afficher un message d'erreur à l'utilisateur
+        }
+    });
+
+    // Charger les mappings au démarrage
+    const initialMappings = await window.api.getMappings();
+    updateViewsVisibility(initialMappings);
+    mappingList.loadMappings();
 });
-
-// Initialisation des événements Socket.IO
-const socket = io('http://localhost:3000', {
-    transports: ['websocket', 'polling'],
-    reconnectionAttempts: 5,
-    reconnectionDelay: 1000
-});
-
-socket.on('connect', () => {
-    console.log('Connected to server');
-    // Informer le serveur que c'est une connexion web
-    socket.emit('web-connect');
-});
-
-socket.on('connect_error', (error) => {
-    console.error('Socket.IO connection error:', error);
-});
-
-socket.on('mobile-status', (data) => {
-    console.log('Mobile status update:', data);
-    appState.connected = data.connected;
-    appState.deviceInfo = data.deviceInfo;
-    updateUI();
-});
-
-// Gestion des événements IPC avec Electron
-if (window.api) {
-    // Événements de connexion
-    window.api.onMobileConnected(({ ip }) => {
-        console.log('Mobile connected via Electron:', ip);
-    });
-
-    window.api.onMobileDisconnected(() => {
-        console.log('Mobile disconnected via Electron');
-    });
-
-    // Événements de mapping
-    window.api.onMappingAdded(() => {
-        const newMapping = createMapping();
-        openMappingEditor(newMapping);
-    });
-
-    window.api.onMappingUpdate((mapping) => {
-        updateMapping(mapping);
-    });
-
-    window.api.onMappingDelete((id) => {
-        deleteMapping(id);
-    });
-
-    window.api.onMappingProgress((data) => {
-        updateMappingProgress(data.id, data.progress);
-    });
-}

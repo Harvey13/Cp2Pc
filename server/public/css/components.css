@@ -28,18 +28,40 @@ header {
 .status-container {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 12px;
+}
+
+.status-info {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    color: #666;
+}
+
+.status-info span {
+    font-size: 14px;
+}
+
+#deviceName {
+    color: #333;
+    font-weight: 500;
 }
 
 .status-led {
     width: 12px;
     height: 12px;
     border-radius: 50%;
+    transition: all 0.3s ease;
 }
 
 .status-led.connected { 
     background: #4CAF50;
     box-shadow: 0 0 8px #4CAF50;
+}
+
+.status-led.disconnected { 
+    background: #f44336;
+    box-shadow: 0 0 8px #f44336;
 }
 
 .status-led.waiting { 
@@ -73,11 +95,37 @@ header {
 /* Styles pour les composants */
 
 /* NoMappingView */
-.no-mapping {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    min-height: 300px;
+.no-mapping-view {
+    text-align: center;
+    padding: 40px;
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    margin: 20px;
+}
+
+.no-mapping-view h2 {
+    margin-bottom: 20px;
+    color: #333;
+}
+
+.no-mapping-view p {
+    color: #666;
+    margin-bottom: 30px;
+}
+
+.add-first-mapping-btn {
+    padding: 12px 24px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: background-color 0.2s;
+}
+
+.add-first-mapping-btn:hover {
+    background-color: #0056b3;
 }
 
 .large-add-btn {
@@ -133,159 +181,221 @@ header {
     background: #45a049;
 }
 
-.mapping-item {
-    padding: 16px;
-    background: white;
-    border: 1px solid #ddd;
-    border-radius: 8px;
-    margin-bottom: 8px;
+.mapping-list {
+    padding: 20px;
 }
 
-.mapping-header {
+.mapping-item {
+    background-color: white;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 15px;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 8px;
+}
+
+.mapping-info {
+    flex-grow: 1;
+}
+
+.mapping-title {
+    font-weight: 500;
+    margin-bottom: 5px;
+}
+
+.mapping-path {
+    color: #666;
+    font-size: 0.9em;
 }
 
 .mapping-actions {
     display: flex;
-    gap: 8px;
+    gap: 10px;
 }
 
-.icon-button {
-    padding: 4px;
-    background: none;
-    border: none;
+.edit-btn,
+.delete-btn {
+    padding: 6px 12px;
     border-radius: 4px;
     cursor: pointer;
-    color: #666;
-    transition: all 0.3s ease;
 }
 
-.icon-button:hover {
-    background: rgba(0, 0, 0, 0.1);
-    color: #333;
+.edit-btn {
+    background-color: #f0f0f0;
+    border: 1px solid #ddd;
 }
 
-.mapping-paths {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    margin-bottom: 16px;
+.delete-btn {
+    background-color: #dc3545;
+    color: white;
+    border: none;
 }
 
-.path-item {
-    display: flex;
-    gap: 8px;
-    font-size: 14px;
+.edit-btn:hover {
+    background-color: #e0e0e0;
 }
 
-.path-label {
-    color: #666;
-    min-width: 80px;
+.delete-btn:hover {
+    background-color: #c82333;
 }
 
-.mapping-progress-container {
-    height: 4px;
-    background: #eee;
-    border-radius: 2px;
-    overflow: hidden;
-}
-
-.mapping-progress {
-    height: 100%;
-    background: #4CAF50;
-    transition: width 0.3s ease;
-}
-
-/* MappingEditor */
-.mapping-editor {
+/* Styles de l'éditeur de mapping */
+mapping-editor {
     position: fixed;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    width: 90%;
-    max-width: 600px;
-    background: white;
+    background-color: white;
+    padding: 24px;
     border-radius: 8px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    width: 500px;
+    max-width: 90%;
+    z-index: 1001;
+}
+
+mapping-editor[style*="display: none"] {
+    display: none !important;
+}
+
+mapping-editor[style*="display: block"] {
+    display: block !important;
+}
+
+.editor-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.5);
     z-index: 1000;
+}
+
+.editor-overlay[style*="display: none"] {
+    display: none !important;
+}
+
+.editor-overlay[style*="display: block"] {
+    display: block !important;
 }
 
 .editor-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 16px;
-    border-bottom: 1px solid #eee;
+    margin-bottom: 20px;
+}
+
+.editor-header h2 {
+    margin: 0;
+    font-size: 1.5em;
+    color: #333;
 }
 
 .editor-content {
-    padding: 16px;
+    margin-bottom: 20px;
 }
 
 .form-group {
-    margin-bottom: 16px;
+    margin-bottom: 15px;
 }
 
 .form-group label {
     display: block;
     margin-bottom: 8px;
-    color: #666;
+    font-weight: 500;
+    color: #333;
+}
+
+.form-group input {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+    box-sizing: border-box;
+}
+
+.form-group input:read-only {
+    background-color: #f8f9fa;
 }
 
 .path-input {
     display: flex;
     gap: 8px;
+    align-items: center;
 }
 
 .path-input input {
-    flex: 1;
-    padding: 8px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    background: #f8f9fa;
+    flex-grow: 1;
 }
 
 .browse-btn {
     padding: 8px;
-    background: #f8f9fa;
+    background-color: #f0f0f0;
     border: 1px solid #ddd;
     border-radius: 4px;
     cursor: pointer;
-    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 36px;
 }
 
 .browse-btn:hover {
-    background: #e9ecef;
+    background-color: #e0e0e0;
 }
 
 .editor-footer {
     display: flex;
     justify-content: flex-end;
-    gap: 8px;
-    padding: 16px;
-    border-top: 1px solid #eee;
+    gap: 10px;
+    margin-top: 24px;
+}
+
+.cancel-btn,
+.save-btn {
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 500;
+    font-size: 14px;
 }
 
 .cancel-btn {
-    padding: 8px 16px;
-    background: none;
+    background-color: #f0f0f0;
     border: 1px solid #ddd;
-    border-radius: 4px;
-    cursor: pointer;
+    color: #666;
 }
 
 .save-btn {
-    padding: 8px 16px;
-    background: #4CAF50;
+    background-color: #007bff;
     color: white;
     border: none;
-    border-radius: 4px;
-    cursor: pointer;
+}
+
+.cancel-btn:hover {
+    background-color: #e0e0e0;
 }
 
 .save-btn:hover {
-    background: #45a049;
+    background-color: #0056b3;
+}
+
+.close-btn {
+    background: none;
+    border: none;
+    padding: 4px;
+    cursor: pointer;
+    color: #666;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.close-btn:hover {
+    color: #333;
 }

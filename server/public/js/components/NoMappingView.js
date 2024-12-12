@@ -3,6 +3,7 @@ class NoMappingView extends HTMLElement {
     constructor() {
         super();
         this.render();
+        this.addEventListeners();
     }
 
     render() {
@@ -16,13 +17,20 @@ class NoMappingView extends HTMLElement {
                 </button>
             </div>
         `;
+    }
 
-        // Ajouter l'écouteur d'événement
-        this.querySelector('#firstMappingBtn').addEventListener('click', () => {
-            if (window.api) {
-                window.api.addMapping();
-            }
-        });
+    addEventListeners() {
+        console.log('Adding event listener to first mapping button');
+        const btn = this.querySelector('#firstMappingBtn');
+        if (btn) {
+            btn.addEventListener('click', () => {
+                console.log('First mapping button clicked');
+                // Déclencher l'événement add-first-mapping
+                this.dispatchEvent(new CustomEvent('add-first-mapping'));
+            });
+        } else {
+            console.error('First mapping button not found');
+        }
     }
 }
 

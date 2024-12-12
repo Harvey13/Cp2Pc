@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self' ws: wss: http: https:">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' http://localhost:3000; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self' ws://localhost:3000 http://localhost:3000">
     <title>Cp2Pc - Transfert de fichiers</title>
     <link rel="stylesheet" href="css/styles.css">
     <link rel="stylesheet" href="css/components.css">
@@ -12,7 +12,10 @@
         <header>
             <div class="status-container">
                 <div id="connectionStatus" class="status-led waiting"></div>
-                <span id="statusText">En attente d'un mobile</span>
+                <div class="status-info">
+                    <span id="statusText">En attente d'un mobile</span>
+                    <span id="deviceName">Non connecté</span>
+                </div>
             </div>
             <button id="configBtn" class="icon-button" title="Configuration">
                 <svg viewBox="0 0 24 24" width="24" height="24">
@@ -25,15 +28,16 @@
             <no-mapping-view id="noMappingState"></no-mapping-view>
             <mapping-list id="withMappingsState"></mapping-list>
         </div>
-
-        <mapping-editor id="mappingEditor"></mapping-editor>
     </div>
 
-    <script src="js/socket.io.js"></script>
+    <mapping-editor id="mappingEditor"></mapping-editor>
+
+    <script src="http://localhost:3000/socket.io/socket.io.js"></script>
     <script src="js/i18n.js"></script>
     <script src="js/components/NoMappingView.js"></script>
     <script src="js/components/MappingList.js"></script>
     <script src="js/components/MappingEditor.js"></script>
+    <script src="js/logger.js"></script>
     <script src="js/main.js"></script>
 </body>
 </html>
