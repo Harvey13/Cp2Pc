@@ -11,6 +11,8 @@ contextBridge.exposeInMainWorld('api', {
     
     // Actions de mapping
     addMapping: () => ipcRenderer.send('add-mapping'),
+    createMapping: (mapping) => ipcRenderer.invoke('create-mapping', mapping),
+    updateMapping: (mapping) => ipcRenderer.invoke('update-mapping', mapping),
     
     // Vérification de la connexion
     checkConnectionStatus: () => ipcRenderer.invoke('get-mobile-status'),

@@ -1,5 +1,20 @@
 # Historique des versions
 
+## v0.08 (2024-12-12)
+
+### Améliorations
+- Implémentation de la sauvegarde des mappings :
+  - Ajout des fonctions createMapping et updateMapping à l'API
+  - Gestion de la création et mise à jour des mappings dans le processus principal
+  - Génération automatique d'IDs uniques pour les nouveaux mappings
+  - Sauvegarde persistante dans la configuration
+
+### Technique
+- Amélioration de la gestion des IPC :
+  - Ajout des handlers pour la création et mise à jour des mappings
+  - Meilleure gestion des erreurs avec logging
+  - Optimisation de la sauvegarde de la configuration
+
 ## v0.07 (2024-12-12)
 
 ### Améliorations

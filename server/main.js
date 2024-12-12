@@ -349,6 +349,37 @@ function setupIPC() {
         }
     });
 
+    ipcMain.handle('create-mapping', async (event, mapping) => {
+        logger.console_log(LogTypes.INFO, 'Creating new mapping:', mapping);
+        try {
+            // Générer un ID unique pour le nouveau mapping
+            mapping.id = Date.now().toString();
+            currentConfig.mappings = currentConfig.mappings || [];
+            currentConfig.mappings.push(mapping);
+            await saveConfig(currentConfig);
+            return mapping;
+        } catch (error) {
+            logger.console_log(LogTypes.ERROR, 'Error creating mapping:', error);
+            throw error;
+        }
+    });
+
+    ipcMain.handle('update-mapping', async (event, mapping) => {
+        logger.console_log(LogTypes.INFO, 'Updating mapping:', mapping);
+        try {
+            const index = currentConfig.mappings.findIndex(m => m.id === mapping.id);
+            if (index !== -1) {
+                currentConfig.mappings[index] = mapping;
+                await saveConfig(currentConfig);
+                return mapping;
+            }
+            throw new Error('Mapping not found');
+        } catch (error) {
+            logger.console_log(LogTypes.ERROR, 'Error updating mapping:', error);
+            throw error;
+        }
+    });
+
     // Gestion des dossiers
     ipcMain.handle('select-folder', async () => {
         const result = await dialog.showOpenDialog({
