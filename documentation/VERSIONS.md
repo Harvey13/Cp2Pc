@@ -1,5 +1,23 @@
 # Historique des versions
 
+## v0.09 (2024-12-13)
+
+### Améliorations
+- Implémentation de la suppression des mappings :
+  - Ajout de la fonction deleteMapping à l'API
+  - Gestion de la suppression dans le processus principal
+  - Mise à jour automatique de l'interface après suppression
+- Optimisation de l'interface utilisateur :
+  - Restauration des icônes pour les boutons d'action
+  - Amélioration de la mise en page des mappings
+  - Meilleure gestion des événements de suppression
+
+### Technique
+- Amélioration de la gestion des IPC :
+  - Ajout du handler delete-mapping
+  - Gestion des erreurs et logging
+  - Mise à jour de la configuration après suppression
+
 ## v0.08 (2024-12-12)
 
 ### Améliorations

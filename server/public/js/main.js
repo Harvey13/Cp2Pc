@@ -149,10 +149,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         const mapping = event.detail;
         
         try {
-            await window.api.deleteMapping(mapping.id);
-            const mappings = await window.api.getMappings();
-            updateViewsVisibility(mappings);
-            mappingList.loadMappings();
+            if (window.api) {
+                await window.api.deleteMapping(mapping.id);
+                // Rafraîchir la liste des mappings et mettre à jour la visibilité
+                const mappings = await window.api.getMappings();
+                updateViewsVisibility(mappings);
+                mappingList.loadMappings();
+            }
         } catch (error) {
             console.error('Error deleting mapping:', error);
             // TODO: Afficher un message d'erreur à l'utilisateur

@@ -380,6 +380,22 @@ function setupIPC() {
         }
     });
 
+    ipcMain.handle('delete-mapping', async (event, mappingId) => {
+        logger.console_log(LogTypes.INFO, 'Deleting mapping:', mappingId);
+        try {
+            const index = currentConfig.mappings.findIndex(m => m.id === mappingId);
+            if (index !== -1) {
+                currentConfig.mappings.splice(index, 1);
+                await saveConfig(currentConfig);
+                return true;
+            }
+            throw new Error('Mapping not found');
+        } catch (error) {
+            logger.console_log(LogTypes.ERROR, 'Error deleting mapping:', error);
+            throw error;
+        }
+    });
+
     // Gestion des dossiers
     ipcMain.handle('select-folder', async () => {
         const result = await dialog.showOpenDialog({

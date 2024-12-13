@@ -164,6 +164,11 @@ header {
     border-radius: 8px;
 }
 
+.mappings-header h2 {
+    margin: 0;
+    padding-left: 8px;
+}
+
 .start-copy-btn {
     display: flex;
     align-items: center;
@@ -198,6 +203,7 @@ header {
 
 .mapping-info {
     flex-grow: 1;
+    margin-right: 20px;
 }
 
 .mapping-title {
@@ -212,19 +218,24 @@ header {
 
 .mapping-actions {
     display: flex;
-    gap: 10px;
+    gap: 6px;
+    flex-shrink: 0;
 }
 
 .edit-btn,
 .delete-btn {
-    padding: 6px 12px;
+    padding: 4px 8px;
     border-radius: 4px;
     cursor: pointer;
+    font-size: 13px;
+    min-width: 40px;
+    text-align: center;
 }
 
 .edit-btn {
     background-color: #f0f0f0;
     border: 1px solid #ddd;
+    color: #333;
 }
 
 .delete-btn {
