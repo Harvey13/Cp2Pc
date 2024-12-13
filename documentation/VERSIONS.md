@@ -1,5 +1,25 @@
 # Historique des versions
 
+## v0.12 (2024-12-13)
+### Nouvelles fonctionnalités
+- Ajout d'une barre de progression pour la copie des fichiers
+- Bouton d'annulation pendant la copie
+- Affichage détaillé de la progression (fichiers copiés/total)
+
+### Améliorations
+- Interface utilisateur plus réactive pendant la copie
+- Meilleure gestion des erreurs et de l'annulation
+- Messages de progression plus détaillés
+
+## v0.11 (2024-12-13)
+### Nouvelles fonctionnalités
+- Ajout du mode local permettant la copie sans appareil mobile
+- Nouveau panneau de configuration avec options de mode local
+
+### Améliorations
+- Interface de configuration plus intuitive
+- Sauvegarde automatique des préférences utilisateur
+
 ## v0.10 (2024-12-13)
 
 ### Améliorations

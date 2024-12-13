@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld('api', {
     closeWindow: () => ipcRenderer.send('close-window'),
     getMappings: () => ipcRenderer.invoke('get-mappings'),
     getConfig: () => ipcRenderer.invoke('get-config'),
+    saveConfig: (config) => ipcRenderer.invoke('save-config', config),
     getCurrentLanguage: () => ipcRenderer.invoke('get-current-language'),
     
     // Actions de mapping
@@ -44,6 +45,14 @@ contextBridge.exposeInMainWorld('api', {
         ipcRenderer.on('mapping-progress', (event, data) => callback(data));
     },
 
+    // Événements de progression
+    onCopyProgress: (callback) => {
+        ipcRenderer.on('copy-progress', (event, progress) => callback(progress));
+    },
+        
+    // Annulation de la copie
+    cancelCopy: () => ipcRenderer.invoke('cancel-copy'),
+    
     // Sélection de dossiers
     selectMobileFolder: () => ipcRenderer.invoke('select-mobile-folder'),
     selectPcFolder: () => ipcRenderer.invoke('select-pc-folder'),

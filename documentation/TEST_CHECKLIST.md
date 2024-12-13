@@ -4,7 +4,8 @@
 
 ### Bouton "Lancer la copie"
 - [ ] Le bouton est visible et actif
-- [ ] Un message d'erreur apparaît si aucun appareil n'est connecté
+- [ ] Un message d'erreur apparaît si aucun appareil n'est connecté (mode normal)
+- [ ] Pas de message d'erreur de connexion si le mode local est activé
 - [ ] Un message d'erreur apparaît si aucun mapping n'est configuré
 - [ ] Le processus de copie démarre si toutes les conditions sont remplies
 - [ ] Le message d'erreur est simple et lisible
@@ -15,6 +16,20 @@
 - [ ] Cliquer ouvre la fenêtre d'édition de mapping
 - [ ] La fenêtre s'ouvre avec des champs vides
 - [ ] Le titre de la fenêtre indique "Nouveau mapping"
+
+## Panneau de Configuration
+- [ ] Le panneau est accessible depuis le menu
+- [ ] La case à cocher "Mode Local" est présente
+- [ ] L'état de la case est conservé après redémarrage
+- [ ] Le bouton "Enregistrer" est fonctionnel
+- [ ] Un message de confirmation apparaît après la sauvegarde
+
+### Tests du Mode Local
+- [ ] La copie fonctionne sans appareil connecté quand activé
+- [ ] La copie nécessite un appareil quand désactivé
+- [ ] Le changement de mode est immédiat
+- [ ] Les mappings fonctionnent correctement en mode local
+- [ ] Les chemins sont correctement résolus en mode local
 
 ## Liste des Mappings
 

@@ -3,7 +3,10 @@ class MappingList extends HTMLElement {
     constructor() {
         super();
         this.mappings = [];
+        this.currentProgress = null;
+        this.copyInProgress = false;
         this.render();
+        this.setupProgressListener();
     }
 
     // Charger les mappings depuis l'API
@@ -143,6 +146,113 @@ class MappingList extends HTMLElement {
                 });
             }
         });
+    }
+
+    setupProgressListener() {
+        if (window.api) {
+            window.api.onCopyProgress((progress) => {
+                switch (progress.status) {
+                    case 'start':
+                        this.showGlobalProgress();
+                        break;
+                    
+                    case 'starting':
+                        this.updateMappingProgress(progress.mapping, 0, progress.total);
+                        break;
+                    
+                    case 'copying':
+                        this.updateMappingProgress(
+                            progress.mapping,
+                            progress.current,
+                            progress.total,
+                            progress.currentFile
+                        );
+                        break;
+                    
+                    case 'completed':
+                        this.completeMappingProgress(progress.mapping);
+                        break;
+                    
+                    case 'finished':
+                        this.hideProgress();
+                        break;
+                    
+                    case 'error':
+                        this.showError(progress.error);
+                        this.hideProgress();
+                        break;
+                }
+            });
+        }
+    }
+
+    showGlobalProgress() {
+        // Supprimer l'ancienne barre de progression si elle existe
+        this.hideProgress();
+        this.copyInProgress = true;
+
+        // Créer la nouvelle barre de progression
+        this.currentProgress = document.createElement('div');
+        this.currentProgress.className = 'copy-progress';
+        this.currentProgress.innerHTML = `
+            <div class="progress-header">
+                <span class="progress-title">Copie en cours...</span>
+                <span class="progress-details"></span>
+            </div>
+            <div class="progress-container">
+                <div class="progress-bar">
+                    <div class="progress-fill" style="width: 0%"></div>
+                </div>
+                <button class="cancel-copy-btn">Annuler</button>
+            </div>
+        `;
+
+        // Ajouter l'écouteur pour le bouton d'annulation
+        const cancelBtn = this.currentProgress.querySelector('.cancel-copy-btn');
+        cancelBtn.addEventListener('click', () => {
+            if (window.api) {
+                window.api.cancelCopy();
+                this.hideProgress();
+                this.showError('Copie annulée');
+            }
+        });
+
+        document.body.appendChild(this.currentProgress);
+    }
+
+    updateMappingProgress(mappingTitle, current, total, currentFile = '') {
+        if (!this.currentProgress || !this.copyInProgress) return;
+
+        const percentage = Math.round((current / total) * 100);
+        const progressFill = this.currentProgress.querySelector('.progress-fill');
+        const progressDetails = this.currentProgress.querySelector('.progress-details');
+
+        if (progressFill) {
+            progressFill.style.width = `${percentage}%`;
+        }
+        
+        if (progressDetails) {
+            progressDetails.textContent = currentFile 
+                ? `${mappingTitle} - ${current}/${total} - ${currentFile}`
+                : `${mappingTitle} - ${current}/${total}`;
+        }
+    }
+
+    completeMappingProgress(mappingTitle) {
+        if (!this.currentProgress || !this.copyInProgress) return;
+        
+        const progressDetails = this.currentProgress.querySelector('.progress-details');
+        if (progressDetails) {
+            progressDetails.textContent = `${mappingTitle} - Terminé`;
+        }
+    }
+
+    hideProgress() {
+        if (this.currentProgress) {
+            this.currentProgress.remove();
+            this.currentProgress = null;
+        }
+        this.copyInProgress = false;
     }
 
     showError(message) {

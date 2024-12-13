@@ -92,6 +92,28 @@ header {
     background: #e0e0e0;
 }
 
+/* Configuration */
+.mode-selector {
+    margin: 15px 0;
+}
+
+.mode-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+}
+
+.mode-option input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+}
+
+.mode-option:hover {
+    color: #4CAF50;
+}
+
 /* Mappings */
 .mappings-list {
     display: grid;

@@ -1,6 +1,7 @@
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
-const fs = require('fs').promises;
+const fs = require('fs');
+const fsPromises = fs.promises;
 const express = require('express');
 const os = require('os');
 const http = require('http');
@@ -19,6 +20,8 @@ let expressApp = null;
 let io = null;
 let connectedDevice = null;
 let lastPingTime = null;
+let copyInProgress = false;
+let cancelCopyRequested = false;
 let currentConfig = {
     maxFiles: 1000,
     language: 'fr',
@@ -32,6 +35,7 @@ const DEFAULT_CONFIG = {
     maxFiles: 1000,
     language: 'fr',
     mappings: [],
+    localMode: false,
     logs: {
         activeTypes: [LogTypes.CONFIG, LogTypes.INFO, LogTypes.ERROR]
     }
@@ -238,8 +242,9 @@ function createMappingWindow() {
 async function loadConfig() {
     try {
         const configPath = path.join(app.getPath('userData'), 'config.json');
-        const data = await fs.readFile(configPath, 'utf8');
+        const data = await fsPromises.readFile(configPath, 'utf8');
         currentConfig = { ...DEFAULT_CONFIG, ...JSON.parse(data) };
+        logger.console_log(LogTypes.CONFIG, '[Config] Configuration chargée:', currentConfig);
     } catch (error) {
         logger.console_log(LogTypes.CONFIG, '[Config] Fichier de configuration non trouvé, utilisation des valeurs par défaut');
         currentConfig = { ...DEFAULT_CONFIG };
@@ -250,8 +255,10 @@ async function loadConfig() {
 async function saveConfig(config) {
     try {
         const configPath = path.join(app.getPath('userData'), 'config.json');
-        await fs.writeFile(configPath, JSON.stringify(config, null, 2));
-        currentConfig = config;
+        const newConfig = { ...currentConfig, ...config };
+        await fsPromises.writeFile(configPath, JSON.stringify(newConfig, null, 2));
+        currentConfig = newConfig;
+        logger.console_log(LogTypes.CONFIG, '[Config] Configuration sauvegardée:', currentConfig);
         return true;
     } catch (error) {
         logger.console_log(LogTypes.ERROR, '[Config] Erreur lors de la sauvegarde:', error);
@@ -262,6 +269,14 @@ async function saveConfig(config) {
 // Gestion des IPC
 function setupIPC() {
     // Configuration
+    ipcMain.handle('get-config', async () => {
+        return currentConfig;
+    });
+
+    ipcMain.handle('save-config', async (event, config) => {
+        return await saveConfig(config);
+    });
+
     ipcMain.on('open-config', () => {
         logger.console_log(LogTypes.INFO, 'Opening config window');
         if (!configWindow) {
@@ -290,10 +305,6 @@ function setupIPC() {
 
     ipcMain.handle('get-mappings', async () => {
         return currentConfig.mappings || [];
-    });
-
-    ipcMain.handle('get-config', async () => {
-        return currentConfig;
     });
 
     ipcMain.handle('get-current-language', async () => {
@@ -396,29 +407,144 @@ function setupIPC() {
         }
     });
 
-    ipcMain.handle('start-copy', async () => {
-        logger.console_log(LogTypes.INFO, 'Starting copy process');
+    // Fonction de copie locale
+    async function copyLocalFiles(mapping, event) {
         try {
-            if (!connectedDevice) {
-                throw new Error('Aucun appareil mobile connecté');
-            }
+            const sourcePath = mapping.sourcePath;
+            const destPath = mapping.destPath;
 
-            // Vérifier qu'il y a des mappings configurés
+            // Vérifier que les chemins existent
+            await fsPromises.access(sourcePath);
+            
+            // Créer le dossier de destination s'il n'existe pas
+            await fsPromises.mkdir(destPath, { recursive: true });
+
+            // Lire le contenu du dossier source
+            const files = await fsPromises.readdir(sourcePath, { withFileTypes: true });
+            const totalFiles = files.filter(file => file.isFile()).length;
+            let copiedFiles = 0;
+            
+            // Émettre le début de la copie pour ce mapping
+            event.sender.send('copy-progress', {
+                mapping: mapping.title,
+                current: 0,
+                total: totalFiles,
+                status: 'starting'
+            });
+            
+            for (const file of files) {
+                // Vérifier si l'annulation a été demandée
+                if (cancelCopyRequested) {
+                    throw new Error("Copie annulée par l'utilisateur");
+                }
+
+                const srcFile = path.join(sourcePath, file.name);
+                const destFile = path.join(destPath, file.name);
+                
+                if (file.isFile()) {
+                    await fsPromises.copyFile(srcFile, destFile);
+                    copiedFiles++;
+                    
+                    // Émettre la progression
+                    event.sender.send('copy-progress', {
+                        mapping: mapping.title,
+                        current: copiedFiles,
+                        total: totalFiles,
+                        status: 'copying',
+                        currentFile: file.name
+                    });
+                    
+                    logger.console_log(LogTypes.INFO, `Copié: ${file.name}`);
+                }
+            }
+            
+            // Émettre la fin de la copie pour ce mapping
+            event.sender.send('copy-progress', {
+                mapping: mapping.title,
+                current: totalFiles,
+                total: totalFiles,
+                status: 'completed'
+            });
+            
+            return true;
+        } catch (error) {
+            // Émettre l'erreur
+            event.sender.send('copy-progress', {
+                mapping: mapping.title,
+                status: 'error',
+                error: error.message
+            });
+            
+            logger.console_log(LogTypes.ERROR, `Erreur lors de la copie de ${mapping.title}:`, error);
+            throw error;
+        }
+    }
+
+    ipcMain.handle('start-copy', async (event) => {
+        try {
+            // Vérifier s'il y a des mappings configurés
             if (!currentConfig.mappings || currentConfig.mappings.length === 0) {
                 throw new Error('Aucun mapping configuré');
             }
 
-            // Envoyer la commande de copie au mobile via Socket.IO
-            if (io) {
-                io.emit('start-copy', currentConfig.mappings);
-                return true;
+            // Réinitialiser le flag d'annulation
+            cancelCopyRequested = false;
+            copyInProgress = true;
+
+            // Vérifier la connexion de l'appareil mobile seulement si pas en mode local
+            if (!currentConfig.localMode) {
+                const devices = await adb.devices();
+                if (!devices || devices.length === 0) {
+                    throw new Error('Aucun appareil mobile connecté');
+                }
+                // TODO: Implémenter la copie via ADB
             } else {
-                throw new Error('Erreur de connexion au serveur');
+                // Mode local : copier les fichiers directement
+                logger.console_log(LogTypes.INFO, 'Démarrage de la copie en mode local');
+                
+                // Émettre le début du processus global
+                event.sender.send('copy-progress', {
+                    status: 'start',
+                    totalMappings: currentConfig.mappings.length
+                });
+                
+                for (const mapping of currentConfig.mappings) {
+                    if (cancelCopyRequested) {
+                        throw new Error("Copie annulée par l'utilisateur");
+                    }
+                    await copyLocalFiles(mapping, event);
+                }
+                
+                // Émettre la fin du processus global
+                event.sender.send('copy-progress', {
+                    status: 'finished'
+                });
             }
+
+            copyInProgress = false;
+            logger.console_log(LogTypes.INFO, 'Processus de copie terminé avec succès');
+            return true;
         } catch (error) {
-            logger.console_log(LogTypes.ERROR, 'Error starting copy:', error);
+            copyInProgress = false;
+            // Émettre l'erreur globale
+            event.sender.send('copy-progress', {
+                status: 'error',
+                error: error.message
+            });
+            
+            logger.console_log(LogTypes.ERROR, 'Erreur lors de la copie:', error);
             throw error;
         }
+    });
+
+    // Gestion de l'annulation de la copie
+    ipcMain.handle('cancel-copy', async () => {
+        if (copyInProgress) {
+            cancelCopyRequested = true;
+            logger.console_log(LogTypes.INFO, 'Annulation de la copie demandée');
+            return true;
+        }
+        return false;
     });
 
     // Gestion des dossiers
