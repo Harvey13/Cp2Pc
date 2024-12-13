@@ -5,6 +5,7 @@ class MappingList extends HTMLElement {
         this.mappings = [];
         this.currentProgress = null;
         this.copyInProgress = false;
+        this.isGlobalCopy = false;
         this.render();
         this.setupProgressListener();
     }
@@ -66,22 +67,31 @@ class MappingList extends HTMLElement {
     createMappingElement(mapping) {
         return `
             <div class="mapping-item" data-id="${mapping.id}">
-                <div class="mapping-info">
-                    <div class="mapping-title">${mapping.title}</div>
-                    <div class="mapping-path">Source: ${mapping.sourcePath || 'Non défini'}</div>
-                    <div class="mapping-path">Destination: ${mapping.destPath || 'Non défini'}</div>
-                </div>
-                <div class="mapping-actions">
-                    <button class="icon-button edit-btn" title="Éditer">
-                        <svg viewBox="0 0 24 24" width="16" height="16">
-                            <path fill="currentColor" d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
-                        </svg>
-                    </button>
-                    <button class="icon-button delete-btn" title="Supprimer">
-                        <svg viewBox="0 0 24 24" width="16" height="16">
-                            <path fill="currentColor" d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
-                        </svg>
-                    </button>
+                <div class="mapping-content">
+                    <div class="mapping-header">
+                        <h3 class="mapping-title">${mapping.title}</h3>
+                        <div class="mapping-actions">
+                            <button class="start-mapping-btn" title="Lancer ce mapping">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="20" height="20">
+                                    <path fill="currentColor" d="M371.7 238l-176-107c-15.8-8.8-35.7 2.5-35.7 21v208c0 18.4 19.8 29.8 35.7 21l176-101c16.4-9.1 16.4-32.8 0-42z"/>
+                                </svg>
+                            </button>
+                            <button class="icon-button edit-mapping-btn" title="Éditer">
+                                <svg viewBox="0 0 24 24" width="16" height="16">
+                                    <path fill="currentColor" d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+                                </svg>
+                            </button>
+                            <button class="icon-button delete-mapping-btn" title="Supprimer">
+                                <svg viewBox="0 0 24 24" width="16" height="16">
+                                    <path fill="currentColor" d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="mapping-details">
+                        <p class="mapping-path">Source: ${mapping.sourcePath || 'Non défini'}</p>
+                        <p class="mapping-path">Destination: ${mapping.destinationPath || 'Non défini'}</p>
+                    </div>
                 </div>
             </div>
         `;
@@ -89,21 +99,40 @@ class MappingList extends HTMLElement {
 
     addEventListeners() {
         // Bouton de copie globale
-        const copyBtn = this.querySelector('.start-copy-btn');
-        if (copyBtn) {
-            copyBtn.addEventListener('click', async () => {
-                console.log('Starting copy process');
-                if (window.api) {
+        const startCopyBtn = this.querySelector('.start-copy-btn');
+        if (startCopyBtn) {
+            startCopyBtn.addEventListener('click', async () => {
+                if (!this.copyInProgress) {
+                    this.isGlobalCopy = true;
+                    this.disableAllCopyButtons();
                     try {
                         await window.api.startCopy();
-                        console.log('Copy process started successfully');
                     } catch (error) {
-                        console.error('Error starting copy:', error);
-                        this.showError(error.message || 'Erreur lors du démarrage de la copie');
+                        this.showError(error.message);
                     }
                 }
             });
         }
+
+        // Boutons de lancement des mappings individuels
+        const startMappingBtns = this.querySelectorAll('.start-mapping-btn');
+        startMappingBtns.forEach(btn => {
+            btn.addEventListener('click', async () => {
+                if (!this.copyInProgress) {
+                    const mappingId = btn.closest('.mapping-item').dataset.id;
+                    const mapping = this.mappings.find(m => m.id === mappingId);
+                    if (mapping) {
+                        this.isGlobalCopy = false;
+                        this.disableAllCopyButtons();
+                        try {
+                            await window.api.startCopy([mapping]);
+                        } catch (error) {
+                            this.showError(error.message);
+                        }
+                    }
+                }
+            });
+        });
 
         // Bouton d'ajout de mapping
         const addBtn = this.querySelector('.add-mapping-btn');
@@ -122,8 +151,8 @@ class MappingList extends HTMLElement {
 
         // Boutons d'action des mappings
         this.querySelectorAll('.mapping-item').forEach(item => {
-            const editBtn = item.querySelector('.edit-btn');
-            const deleteBtn = item.querySelector('.delete-btn');
+            const editBtn = item.querySelector('.edit-mapping-btn');
+            const deleteBtn = item.querySelector('.delete-mapping-btn');
             const mappingId = item.dataset.id;
 
             if (editBtn) {
@@ -186,17 +215,49 @@ class MappingList extends HTMLElement {
         }
     }
 
+    disableAllCopyButtons() {
+        // Désactiver le bouton de copie globale
+        const globalCopyBtn = this.querySelector('.start-copy-btn');
+        if (globalCopyBtn) {
+            globalCopyBtn.disabled = true;
+            globalCopyBtn.classList.add('disabled');
+        }
+
+        // Désactiver tous les boutons de lancement
+        const startMappingBtns = this.querySelectorAll('.start-mapping-btn');
+        startMappingBtns.forEach(btn => {
+            btn.disabled = true;
+            btn.classList.add('disabled');
+        });
+    }
+
+    enableAllCopyButtons() {
+        // Réactiver le bouton de copie globale
+        const globalCopyBtn = this.querySelector('.start-copy-btn');
+        if (globalCopyBtn) {
+            globalCopyBtn.disabled = false;
+            globalCopyBtn.classList.remove('disabled');
+        }
+
+        // Réactiver tous les boutons de lancement
+        const startMappingBtns = this.querySelectorAll('.start-mapping-btn');
+        startMappingBtns.forEach(btn => {
+            btn.disabled = false;
+            btn.classList.remove('disabled');
+        });
+    }
+
     showGlobalProgress() {
-        // Supprimer l'ancienne barre de progression si elle existe
         this.hideProgress();
         this.copyInProgress = true;
+        this.disableAllCopyButtons();
 
         // Créer la nouvelle barre de progression
         this.currentProgress = document.createElement('div');
         this.currentProgress.className = 'copy-progress';
         this.currentProgress.innerHTML = `
             <div class="progress-header">
-                <span class="progress-title">Copie en cours...</span>
+                <span class="progress-title">Copie en cours: <span class="mapping-title"></span></span>
                 <span class="progress-details"></span>
             </div>
             <div class="progress-container">
@@ -221,29 +282,26 @@ class MappingList extends HTMLElement {
     }
 
     updateMappingProgress(mappingTitle, current, total, currentFile = '') {
-        if (!this.currentProgress || !this.copyInProgress) return;
-
-        const percentage = Math.round((current / total) * 100);
-        const progressFill = this.currentProgress.querySelector('.progress-fill');
-        const progressDetails = this.currentProgress.querySelector('.progress-details');
-
-        if (progressFill) {
-            progressFill.style.width = `${percentage}%`;
-        }
-        
-        if (progressDetails) {
-            progressDetails.textContent = currentFile 
-                ? `${mappingTitle} - ${current}/${total} - ${currentFile}`
-                : `${mappingTitle} - ${current}/${total}`;
+        if (this.currentProgress) {
+            const progressBar = this.currentProgress.querySelector('.progress-bar');
+            const progressDetails = this.currentProgress.querySelector('.progress-details');
+            const mappingTitleElement = this.currentProgress.querySelector('.mapping-title');
+            
+            if (progressBar && progressDetails && mappingTitleElement) {
+                const percentage = Math.round((current / total) * 100);
+                progressBar.querySelector('.progress-fill').style.width = `${percentage}%`;
+                progressDetails.textContent = currentFile ? `${current}/${total} - ${currentFile}` : `${current}/${total}`;
+                mappingTitleElement.textContent = mappingTitle || '';
+            }
         }
     }
 
     completeMappingProgress(mappingTitle) {
-        if (!this.currentProgress || !this.copyInProgress) return;
-        
-        const progressDetails = this.currentProgress.querySelector('.progress-details');
-        if (progressDetails) {
-            progressDetails.textContent = `${mappingTitle} - Terminé`;
+        if (this.currentProgress) {
+            const progressDetails = this.currentProgress.querySelector('.progress-details');
+            if (progressDetails) {
+                progressDetails.textContent = `${mappingTitle} - Terminé`;
+            }
         }
     }
 
@@ -253,6 +311,8 @@ class MappingList extends HTMLElement {
             this.currentProgress = null;
         }
         this.copyInProgress = false;
+        this.isGlobalCopy = false;
+        this.enableAllCopyButtons();
     }
 
     showError(message) {

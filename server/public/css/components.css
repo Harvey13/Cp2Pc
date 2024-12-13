@@ -159,6 +159,7 @@ header {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    margin-bottom: 10px;
     padding: 16px;
     background: #f8f9fa;
     border-radius: 8px;
@@ -186,70 +187,207 @@ header {
     background: #45a049;
 }
 
+.start-copy-btn.disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.start-copy-btn.disabled:hover {
+    background-color: #4CAF50;
+}
+
 .mapping-list {
     padding: 20px;
 }
 
 .mapping-item {
-    background-color: white;
+    margin-bottom: 16px;
     border: 1px solid #ddd;
     border-radius: 8px;
-    padding: 15px;
-    margin-bottom: 15px;
+    overflow: hidden;
+}
+
+.mapping-content {
+    width: 100%;
+    padding: 16px;
+    background: #f8f9fa;
+}
+
+.mapping-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-}
-
-.mapping-info {
-    flex-grow: 1;
-    margin-right: 20px;
+    margin-bottom: 10px;
 }
 
 .mapping-title {
-    font-weight: 500;
-    margin-bottom: 5px;
-}
-
-.mapping-path {
-    color: #666;
-    font-size: 0.9em;
+    margin: 0;
+    font-size: 1.1em;
+    font-weight: 600;
 }
 
 .mapping-actions {
     display: flex;
-    gap: 6px;
-    flex-shrink: 0;
+    gap: 8px;
+    align-items: center;
 }
 
-.edit-btn,
-.delete-btn {
-    padding: 4px 8px;
+.mapping-details {
+    color: #666;
+}
+
+.mapping-path {
+    margin: 4px 0;
+}
+
+.copy-single-btn {
+    background-color: #4CAF50;
+    color: white;
+    border: 2px solid #4CAF50;
     border-radius: 4px;
+    padding: 4px 8px;
     cursor: pointer;
-    font-size: 13px;
-    min-width: 40px;
-    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
 }
 
-.edit-btn {
-    background-color: #f0f0f0;
-    border: 1px solid #ddd;
-    color: #333;
+.copy-single-btn:hover {
+    background-color: #45a049;
+    border-color: #45a049;
 }
 
-.delete-btn {
+.copy-single-btn.disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.copy-single-btn.disabled:hover {
+    background-color: inherit;
+    border-color: inherit;
+}
+
+.edit-mapping-btn {
+    background-color: #ffc107;
+    color: #000;
+    border: 2px solid #ffc107;
+    border-radius: 4px;
+    padding: 4px 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.edit-mapping-btn:hover {
+    background-color: #e0a800;
+    border-color: #e0a800;
+}
+
+.delete-mapping-btn {
     background-color: #dc3545;
     color: white;
-    border: none;
+    border: 2px solid #dc3545;
+    border-radius: 4px;
+    padding: 4px 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
 }
 
-.edit-btn:hover {
-    background-color: #e0e0e0;
-}
-
-.delete-btn:hover {
+.delete-mapping-btn:hover {
     background-color: #c82333;
+    border-color: #c82333;
+}
+
+.icon-button.disabled,
+.copy-single-btn.disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.icon-button.disabled:hover,
+.copy-single-btn.disabled:hover {
+    background-color: inherit;
+    border-color: inherit;
+}
+
+/* Styles communs pour tous les boutons d'action */
+.start-mapping-btn,
+.edit-mapping-btn,
+.delete-mapping-btn {
+    width: 32px;
+    height: 32px;
+    padding: 4px;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+/* Bouton de lancement (vert) */
+.start-mapping-btn {
+    background-color: #4CAF50;
+    color: white;
+    border: 2px solid #4CAF50;
+}
+
+.start-mapping-btn:hover {
+    background-color: #45a049;
+    border-color: #45a049;
+}
+
+/* Bouton d'édition (jaune) */
+.edit-mapping-btn {
+    background-color: #ffc107;
+    color: #000;
+    border: 2px solid #ffc107;
+}
+
+.edit-mapping-btn:hover {
+    background-color: #e0a800;
+    border-color: #e0a800;
+}
+
+/* Bouton de suppression (rouge) */
+.delete-mapping-btn {
+    background-color: #dc3545;
+    color: white;
+    border: 2px solid #dc3545;
+}
+
+.delete-mapping-btn:hover {
+    background-color: #c82333;
+    border-color: #c82333;
+}
+
+/* États désactivés */
+.start-mapping-btn.disabled,
+.edit-mapping-btn.disabled,
+.delete-mapping-btn.disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.start-mapping-btn.disabled:hover,
+.edit-mapping-btn.disabled:hover,
+.delete-mapping-btn.disabled:hover {
+    background-color: inherit;
+    border-color: inherit;
+}
+
+/* Ajustement de la taille des icônes */
+.start-mapping-btn svg,
+.edit-mapping-btn svg,
+.delete-mapping-btn svg {
+    width: 16px;
+    height: 16px;
 }
 
 /* Styles de l'éditeur de mapping */

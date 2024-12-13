@@ -480,59 +480,36 @@ function setupIPC() {
         }
     }
 
-    ipcMain.handle('start-copy', async (event) => {
+    ipcMain.handle('start-copy', async (event, specificMappings = null) => {
         try {
-            // Vérifier s'il y a des mappings configurés
+            const currentConfig = await loadConfig();
             if (!currentConfig.mappings || currentConfig.mappings.length === 0) {
                 throw new Error('Aucun mapping configuré');
             }
 
-            // Réinitialiser le flag d'annulation
-            cancelCopyRequested = false;
-            copyInProgress = true;
-
-            // Vérifier la connexion de l'appareil mobile seulement si pas en mode local
-            if (!currentConfig.localMode) {
-                const devices = await adb.devices();
-                if (!devices || devices.length === 0) {
-                    throw new Error('Aucun appareil mobile connecté');
+            // Utiliser soit les mappings spécifiques, soit tous les mappings
+            const mappingsToProcess = specificMappings || currentConfig.mappings;
+            
+            event.sender.send('copy-progress', {
+                status: 'start',
+                total: mappingsToProcess.length
+            });
+            
+            for (const mapping of mappingsToProcess) {
+                if (cancelCopyRequested) {
+                    throw new Error("Copie annulée par l'utilisateur");
                 }
-                // TODO: Implémenter la copie via ADB
-            } else {
-                // Mode local : copier les fichiers directement
-                logger.console_log(LogTypes.INFO, 'Démarrage de la copie en mode local');
-                
-                // Émettre le début du processus global
-                event.sender.send('copy-progress', {
-                    status: 'start',
-                    totalMappings: currentConfig.mappings.length
-                });
-                
-                for (const mapping of currentConfig.mappings) {
-                    if (cancelCopyRequested) {
-                        throw new Error("Copie annulée par l'utilisateur");
-                    }
-                    await copyLocalFiles(mapping, event);
-                }
-                
-                // Émettre la fin du processus global
-                event.sender.send('copy-progress', {
-                    status: 'finished'
-                });
+                await copyLocalFiles(mapping, event);
             }
 
-            copyInProgress = false;
-            logger.console_log(LogTypes.INFO, 'Processus de copie terminé avec succès');
-            return true;
+            event.sender.send('copy-progress', { status: 'finished' });
+            cancelCopyRequested = false;
+
         } catch (error) {
-            copyInProgress = false;
-            // Émettre l'erreur globale
             event.sender.send('copy-progress', {
                 status: 'error',
                 error: error.message
             });
-            
-            logger.console_log(LogTypes.ERROR, 'Erreur lors de la copie:', error);
             throw error;
         }
     });

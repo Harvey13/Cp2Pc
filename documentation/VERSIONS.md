@@ -1,5 +1,11 @@
 # Historique des versions
 
+## v0.13 (2024-12-13)
+### Améliorations
+- Ajout d'un bouton de lancement individuel pour chaque mapping
+- Désactivation des boutons de lancement pendant une copie en cours
+- Harmonisation des styles des boutons d'action (lancement, édition, suppression)
+
 ## v0.12 (2024-12-13)
 ### Nouvelles fonctionnalités
 - Ajout d'une barre de progression pour la copie des fichiers
