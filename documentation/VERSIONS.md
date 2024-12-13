@@ -1,5 +1,16 @@
 # Historique des versions
 
+## v0.10 (2024-12-13)
+
+### Améliorations
+- Amélioration de l'affichage des messages d'erreur (plus simples et concis)
+- Correction du bouton d'ajout de mapping (+)
+- Ajout d'une checklist de tests complète
+
+### Corrections
+- Simplification de l'interface des messages d'erreur
+- Correction de l'ouverture de la fenêtre d'édition lors du clic sur le bouton d'ajout
+
 ## v0.09 (2024-12-13)
 
 ### Améliorations

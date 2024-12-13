@@ -88,9 +88,31 @@ class MappingList extends HTMLElement {
         // Bouton de copie globale
         const copyBtn = this.querySelector('.start-copy-btn');
         if (copyBtn) {
-            copyBtn.addEventListener('click', () => {
+            copyBtn.addEventListener('click', async () => {
+                console.log('Starting copy process');
                 if (window.api) {
-                    // TODO: Implémenter la copie globale
+                    try {
+                        await window.api.startCopy();
+                        console.log('Copy process started successfully');
+                    } catch (error) {
+                        console.error('Error starting copy:', error);
+                        this.showError(error.message || 'Erreur lors du démarrage de la copie');
+                    }
+                }
+            });
+        }
+
+        // Bouton d'ajout de mapping
+        const addBtn = this.querySelector('.add-mapping-btn');
+        if (addBtn) {
+            addBtn.addEventListener('click', () => {
+                console.log('Add mapping button clicked');
+                const mappingEditor = document.querySelector('mapping-editor');
+                if (mappingEditor) {
+                    mappingEditor.setMapping(null);
+                    mappingEditor.show();
+                } else {
+                    console.error('Mapping editor not found');
                 }
             });
         }
@@ -121,6 +143,38 @@ class MappingList extends HTMLElement {
                 });
             }
         });
+    }
+
+    showError(message) {
+        // Extraire uniquement le message d'erreur pertinent
+        let errorText = message;
+        if (message.includes(':')) {
+            errorText = message.split(':').pop().trim();
+        }
+        
+        // Supprimer l'ancien message d'erreur s'il existe
+        this.hideError();
+
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'error-message';
+        errorDiv.innerHTML = `
+            <span>${errorText}</span>
+            <button class="close-btn" title="Fermer">×</button>
+        `;
+
+        document.body.appendChild(errorDiv);
+
+        // Ajouter l'écouteur pour fermer le message
+        errorDiv.querySelector('.close-btn').addEventListener('click', () => {
+            this.hideError();
+        });
+    }
+
+    hideError() {
+        const existingError = document.querySelector('.error-message');
+        if (existingError) {
+            existingError.remove();
+        }
     }
 }
 

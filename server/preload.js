@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld('api', {
     createMapping: (mapping) => ipcRenderer.invoke('create-mapping', mapping),
     updateMapping: (mapping) => ipcRenderer.invoke('update-mapping', mapping),
     deleteMapping: (mappingId) => ipcRenderer.invoke('delete-mapping', mappingId),
+    startCopy: () => ipcRenderer.invoke('start-copy'),
     
     // Vérification de la connexion
     checkConnectionStatus: () => ipcRenderer.invoke('get-mobile-status'),

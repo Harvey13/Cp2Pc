@@ -396,6 +396,31 @@ function setupIPC() {
         }
     });
 
+    ipcMain.handle('start-copy', async () => {
+        logger.console_log(LogTypes.INFO, 'Starting copy process');
+        try {
+            if (!connectedDevice) {
+                throw new Error('Aucun appareil mobile connecté');
+            }
+
+            // Vérifier qu'il y a des mappings configurés
+            if (!currentConfig.mappings || currentConfig.mappings.length === 0) {
+                throw new Error('Aucun mapping configuré');
+            }
+
+            // Envoyer la commande de copie au mobile via Socket.IO
+            if (io) {
+                io.emit('start-copy', currentConfig.mappings);
+                return true;
+            } else {
+                throw new Error('Erreur de connexion au serveur');
+            }
+        } catch (error) {
+            logger.console_log(LogTypes.ERROR, 'Error starting copy:', error);
+            throw error;
+        }
+    });
+
     // Gestion des dossiers
     ipcMain.handle('select-folder', async () => {
         const result = await dialog.showOpenDialog({
