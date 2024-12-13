@@ -1,5 +1,12 @@
 # Historique des versions
 
+## v0.14 (2024-12-13)
+### Améliorations
+- Correction de l'affichage des chemins de destination dans la liste des mappings
+- Suppression des marges inutiles dans l'interface
+- Amélioration de l'espacement entre les éléments des mappings
+- Harmonisation des marges et espacements dans la liste des mappings
+
 ## v0.13 (2024-12-13)
 ### Améliorations
 - Ajout d'un bouton de lancement individuel pour chaque mapping

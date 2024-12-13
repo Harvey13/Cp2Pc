@@ -201,7 +201,6 @@ header {
 }
 
 .mapping-item {
-    margin-bottom: 16px;
     border: 1px solid #ddd;
     border-radius: 8px;
     overflow: hidden;
@@ -224,6 +223,8 @@ header {
     margin: 0;
     font-size: 1.1em;
     font-weight: 600;
+    flex: 1;
+    margin-right: 16px;
 }
 
 .mapping-actions {

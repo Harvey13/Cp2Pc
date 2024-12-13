@@ -118,7 +118,6 @@ header {
 .mappings-list {
     display: grid;
     gap: 20px;
-    margin-top: 20px;
 }
 
 .mapping-item {
@@ -157,10 +156,6 @@ header {
 
 .delete-btn:hover {
     color: #d32f2f;
-}
-
-.mapping-content {
-    margin-bottom: 20px;
 }
 
 .folder-section {

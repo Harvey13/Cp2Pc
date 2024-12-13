@@ -90,7 +90,7 @@ class MappingList extends HTMLElement {
                     </div>
                     <div class="mapping-details">
                         <p class="mapping-path">Source: ${mapping.sourcePath || 'Non défini'}</p>
-                        <p class="mapping-path">Destination: ${mapping.destinationPath || 'Non défini'}</p>
+                        <p class="mapping-path">Destination: ${mapping.destPath || 'Non défini'}</p>
                     </div>
                 </div>
             </div>
