@@ -65,13 +65,15 @@ class MappingList extends HTMLElement {
     }
 
     createMappingElement(mapping) {
+        const isComplete = mapping.sourcePath && mapping.destPath;
         return `
             <div class="mapping-item" data-id="${mapping.id}">
                 <div class="mapping-content">
                     <div class="mapping-header">
                         <h3 class="mapping-title">${mapping.title}</h3>
                         <div class="mapping-actions">
-                            <button class="start-mapping-btn" title="Lancer ce mapping">
+                            <button class="start-mapping-btn" title="${isComplete ? 'Lancer ce mapping' : 'Source et destination requises'}" 
+                                    ${!isComplete ? 'disabled' : ''}>
                                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="20" height="20">
                                     <path fill="currentColor" d="M371.7 238l-176-107c-15.8-8.8-35.7 2.5-35.7 21v208c0 18.4 19.8 29.8 35.7 21l176-101c16.4-9.1 16.4-32.8 0-42z"/>
                                 </svg>

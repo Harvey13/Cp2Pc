@@ -1,5 +1,11 @@
 # Historique des versions
 
+## v0.15 (2024-12-13)
+### Améliorations
+- Désactivation du bouton de lancement si la source ou la destination n'est pas définie
+- Ajout d'un message explicatif au survol du bouton désactivé
+- Style visuel distinct pour les boutons désactivés
+
 ## v0.14 (2024-12-13)
 ### Améliorations
 - Correction de l'affichage des chemins de destination dans la liste des mappings
