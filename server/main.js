@@ -111,10 +111,20 @@ function createServer() {
 
 // Vérifier périodiquement la connexion mobile
 function startConnectionCheck() {
+    // Initialiser l'état comme déconnecté au démarrage
+    io?.emit('mobile-status', {
+        connected: false,
+        deviceInfo: null
+    });
+
+    if (mainWindow) {
+        mainWindow.webContents.send('mobile-disconnected');
+    }
+
     setInterval(() => {
         const now = Date.now();
-        if (lastPingTime && (now - lastPingTime > PING_TIMEOUT)) {
-            // Le mobile n'a pas pingé depuis trop longtemps
+        // Vérifier si le mobile n'a pas pingé depuis trop longtemps ou s'il n'a jamais pingé
+        if (!lastPingTime || (now - lastPingTime > PING_TIMEOUT)) {
             lastPingTime = null;
             connectedDevice = null;
             

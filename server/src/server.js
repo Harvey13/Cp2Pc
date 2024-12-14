@@ -322,6 +322,12 @@ function setupSocketIO(server) {
             }
         });
 
+        socket.on('cancel-copy', () => {
+            log('INFO', '🛑 Demande d\'annulation de la copie reçue');
+            fileProcessor.cancelCopy();
+            socket.emit('copy-cancelled');
+        });
+
         socket.on('get-logs', () => {
             const { getLogHistory } = require('./logger');
             socket.emit('logs-history', getLogHistory());

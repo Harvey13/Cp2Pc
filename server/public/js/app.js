@@ -45,6 +45,9 @@ class ConnectionManager {
     initSocket() {
         Logger.log('🔌 Initialisation de la socket avec le serveur:', CONFIG.SERVER_URL);
         
+        // Définir l'état initial comme déconnecté
+        this.updateStatus(ConnectionState.DISCONNECTED);
+        
         this.socket = io(CONFIG.SERVER_URL, {
             transports: ['websocket', 'polling'],
             reconnectionAttempts: Infinity,
@@ -93,6 +96,12 @@ class ConnectionManager {
                 window.i18nManager.setLanguage(config.language);
             }
         });
+
+        this.socket.on('copy-cancelled', () => {
+            Logger.log('🛑 Copie annulée par le serveur');
+            this.hideProgress();
+            this.showMessage('Copie annulée', 'info');
+        });
     }
 
     updateStatus(status, deviceInfo = null) {
@@ -109,6 +118,22 @@ class ConnectionManager {
     // Méthode pour récupérer la socket
     getSocket() {
         return this.socket;
+    }
+
+    hideProgress() {
+        const progressBar = document.querySelector('.progress-bar');
+        if (progressBar) {
+            progressBar.style.width = '0%';
+            progressBar.setAttribute('aria-valuenow', 0);
+        }
+    }
+
+    showMessage(message, type) {
+        const alertDiv = document.createElement('div');
+        alertDiv.className = `alert alert-${type} mt-2`;
+        alertDiv.textContent = message;
+        document.body.appendChild(alertDiv);
+        setTimeout(() => alertDiv.remove(), 5000);
     }
 }
 

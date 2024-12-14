@@ -120,6 +120,17 @@ async function findNextDestination(basePath, maxFiles) {
     }
 }
 
+// Variables globales pour la gestion de l'annulation
+let isCancelled = false;
+
+function cancelCopy() {
+    isCancelled = true;
+}
+
+function resetCancelFlag() {
+    isCancelled = false;
+}
+
 /**
  * Traite un mapping complet
  * @param {Object} options Options de traitement
@@ -130,6 +141,9 @@ async function findNextDestination(basePath, maxFiles) {
  */
 async function processMapping({ mapping, onProgress, onComplete }) {
     try {
+        // Réinitialiser le drapeau d'annulation au début du processus
+        resetCancelFlag();
+
         log_cli('INFO', '📂 Début du traitement du mapping', {
             title: mapping.title,
             sourcePath: mapping.sourcePath,
@@ -185,6 +199,22 @@ async function processMapping({ mapping, onProgress, onComplete }) {
         // Traiter chaque fichier
         log_cli('DEBUG', '📂 Début du traitement des fichiers');
         for (const filename of files) {
+            // Vérifier si l'annulation a été demandée
+            if (isCancelled) {
+                log_cli('INFO', '🛑 Copie annulée par l\'utilisateur', {
+                    mapping: mapping.title
+                });
+                if (onProgress) {
+                    onProgress({
+                        status: 'cancelled',
+                        mapping: mapping.title,
+                        current: processedFiles,
+                        total: totalFiles
+                    });
+                }
+                return;
+            }
+
             log_cli('DEBUG', `📄 Traitement du fichier: ${filename}`);
             try {
                 const copied = await copyFiles({
@@ -260,5 +290,7 @@ module.exports = {
     copyFiles,
     processMapping,
     getFileCount,
-    findNextDestination
+    findNextDestination,
+    cancelCopy,
+    resetCancelFlag
 };

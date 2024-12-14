@@ -1,6 +1,9 @@
 # Historique des versions
 
-
+## v0.17 (2024-12-14)
+### Corrections
+- Correction de l'état de connexion du mobile qui restait actif même lorsque le mobile était éteint
+- Implémentation de l'annulation effective de la copie des fichiers (le bouton Annuler arrête maintenant la copie)
 
 ## v0.16 (2024-12-14)
 ### Nouvelles fonctionnalités
