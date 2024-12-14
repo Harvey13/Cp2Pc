@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' http://localhost:3000; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self' ws://localhost:3000 http://localhost:3000">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' http://localhost:3000; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self' http://localhost:3000 ws://localhost:3000 wss://localhost:3000 ws://localhost:* wss://localhost:* http://localhost:*">
     <title>Cp2Pc - Transfert de fichiers</title>
     <link rel="stylesheet" href="css/styles.css">
     <link rel="stylesheet" href="css/components.css">
@@ -38,6 +38,7 @@
     <script src="js/components/MappingList.js"></script>
     <script src="js/components/MappingEditor.js"></script>
     <script src="js/logger.js"></script>
+    <script src="js/app.js"></script>
     <script src="js/main.js"></script>
 </body>
 </html>

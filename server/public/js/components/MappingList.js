@@ -120,18 +120,27 @@ class MappingList extends HTMLElement {
         const startMappingBtns = this.querySelectorAll('.start-mapping-btn');
         startMappingBtns.forEach(btn => {
             btn.addEventListener('click', async () => {
+                console.log('🔄 Bouton de copie cliqué');
                 if (!this.copyInProgress) {
                     const mappingId = btn.closest('.mapping-item').dataset.id;
+                    console.log('🔍 ID du mapping:', mappingId);
                     const mapping = this.mappings.find(m => m.id === mappingId);
+                    console.log('📂 Mapping trouvé:', mapping);
                     if (mapping) {
+                        console.log('🚀 Démarrage de la copie pour le mapping:', mapping.title);
                         this.isGlobalCopy = false;
                         this.disableAllCopyButtons();
                         try {
+                            console.log('⏳ Appel de window.api.startCopy');
                             await window.api.startCopy([mapping]);
+                            console.log('✅ Copie terminée avec succès');
                         } catch (error) {
+                            console.error('❌ Erreur lors de la copie:', error);
                             this.showError(error.message);
                         }
                     }
+                } else {
+                    console.log('⚠️ Une copie est déjà en cours');
                 }
             });
         });
@@ -182,33 +191,40 @@ class MappingList extends HTMLElement {
     setupProgressListener() {
         if (window.api) {
             window.api.onCopyProgress((progress) => {
+                console.log('🔄 Progress event received:', progress);
                 switch (progress.status) {
                     case 'start':
+                        console.log('🚀 Starting copy process');
                         this.showGlobalProgress();
                         break;
                     
                     case 'starting':
+                        console.log('📂 Starting mapping:', progress.mapping);
                         this.updateMappingProgress(progress.mapping, 0, progress.total);
                         break;
                     
                     case 'copying':
+                        console.log('📄 Copying files:', progress.current, '/', progress.total);
                         this.updateMappingProgress(
                             progress.mapping,
                             progress.current,
                             progress.total,
-                            progress.currentFile
+                            progress.file
                         );
                         break;
                     
                     case 'completed':
+                        console.log('✅ Mapping completed:', progress.mapping);
                         this.completeMappingProgress(progress.mapping);
                         break;
                     
                     case 'finished':
+                        console.log('🏁 Copy process finished');
                         this.hideProgress();
                         break;
                     
                     case 'error':
+                        console.error('❌ Error during copy:', progress.error);
                         this.showError(progress.error);
                         this.hideProgress();
                         break;
@@ -250,6 +266,7 @@ class MappingList extends HTMLElement {
     }
 
     showGlobalProgress() {
+        console.log('📊 Showing progress bar');
         this.hideProgress();
         this.copyInProgress = true;
         this.disableAllCopyButtons();
@@ -257,6 +274,7 @@ class MappingList extends HTMLElement {
         // Créer la nouvelle barre de progression
         this.currentProgress = document.createElement('div');
         this.currentProgress.className = 'copy-progress';
+        this.currentProgress.style.display = 'block'; // S'assurer que la barre est visible
         this.currentProgress.innerHTML = `
             <div class="progress-header">
                 <span class="progress-title">Copie en cours: <span class="mapping-title"></span></span>
@@ -273,6 +291,7 @@ class MappingList extends HTMLElement {
         // Ajouter l'écouteur pour le bouton d'annulation
         const cancelBtn = this.currentProgress.querySelector('.cancel-copy-btn');
         cancelBtn.addEventListener('click', () => {
+            console.log('🛑 Copy cancelled by user');
             if (window.api) {
                 window.api.cancelCopy();
                 this.hideProgress();
@@ -280,10 +299,25 @@ class MappingList extends HTMLElement {
             }
         });
 
+        // Ajouter au DOM
         document.body.appendChild(this.currentProgress);
+        console.log('✅ Progress bar added to DOM:', this.currentProgress);
+    }
+
+    hideProgress() {
+        console.log('🚫 Hiding progress bar');
+        if (this.currentProgress) {
+            this.currentProgress.remove();
+            this.currentProgress = null;
+        }
+        this.copyInProgress = false;
+        this.isGlobalCopy = false;
+        this.enableAllCopyButtons();
+        console.log('✅ Progress bar hidden and buttons enabled');
     }
 
     updateMappingProgress(mappingTitle, current, total, currentFile = '') {
+        console.log('📈 Updating progress:', { mappingTitle, current, total, currentFile });
         if (this.currentProgress) {
             const progressBar = this.currentProgress.querySelector('.progress-bar');
             const progressDetails = this.currentProgress.querySelector('.progress-details');
@@ -294,27 +328,24 @@ class MappingList extends HTMLElement {
                 progressBar.querySelector('.progress-fill').style.width = `${percentage}%`;
                 progressDetails.textContent = currentFile ? `${current}/${total} - ${currentFile}` : `${current}/${total}`;
                 mappingTitleElement.textContent = mappingTitle || '';
+                console.log('✅ Progress updated:', percentage + '%');
+            } else {
+                console.error('❌ Progress elements not found in DOM');
             }
+        } else {
+            console.error('❌ Progress bar not found in DOM');
         }
     }
 
     completeMappingProgress(mappingTitle) {
+        console.log('🎉 Completing progress for mapping:', mappingTitle);
         if (this.currentProgress) {
             const progressDetails = this.currentProgress.querySelector('.progress-details');
             if (progressDetails) {
                 progressDetails.textContent = `${mappingTitle} - Terminé`;
+                console.log('✅ Progress marked as complete');
             }
         }
-    }
-
-    hideProgress() {
-        if (this.currentProgress) {
-            this.currentProgress.remove();
-            this.currentProgress = null;
-        }
-        this.copyInProgress = false;
-        this.isGlobalCopy = false;
-        this.enableAllCopyButtons();
     }
 
     showError(message) {

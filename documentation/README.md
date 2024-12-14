@@ -61,13 +61,14 @@ Définition
 # Transfert de fichiers
 ----------------------
 Le pc a plusieurs interfaces réseaux, le prendre en compte.
-Le mobile utilise sa propre adresse local pour trouve le subnet.
+Le mobile utilise sa propre adresse locale pour trouve le subnet.
 L'application mobile sert d'interface pour :
 - La recherche du serveur
 - La copie des fichiers sélectionnés des dossiers sources vers destinations
 - L'avancement de la copie
 - Détection du serveur
 - Reconnexion automatique en cas de perte
+Si au démarrage de la copie, le nombre de fichiers dans le dossier destination est supérieur au nombre maximum défini dans la configuration, un nouveau dossier est créé avec le nom du dossier plus un numéro d'index. La destination du mapping est mise à jour automatiquement.
 
 # Modes de fonctionnement
 -----------------------

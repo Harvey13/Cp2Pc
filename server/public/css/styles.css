@@ -246,6 +246,102 @@ header {
     border-bottom: none;
 }
 
+/* Barre de progression */
+.copy-progress {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+    width: 80%;
+    max-width: 600px;
+    z-index: 1000;
+}
+
+.progress-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.progress-title {
+    font-weight: 500;
+}
+
+.progress-details {
+    color: #666;
+    font-size: 14px;
+}
+
+.progress-container {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.progress-bar {
+    flex: 1;
+    height: 8px;
+    background: #f0f0f0;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background: #2196F3;
+    width: 0;
+    transition: width 0.3s ease;
+}
+
+.cancel-copy-btn {
+    background: #f44336;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+.cancel-copy-btn:hover {
+    background: #d32f2f;
+}
+
+/* Message d'erreur */
+.error-message {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #ffebee;
+    color: #d32f2f;
+    padding: 12px 20px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    z-index: 1000;
+}
+
+.error-message .close-btn {
+    background: none;
+    border: none;
+    color: #d32f2f;
+    font-size: 20px;
+    cursor: pointer;
+    padding: 0 4px;
+}
+
+.error-message .close-btn:hover {
+    opacity: 0.8;
+}
+
 /* Responsive design */
 @media (max-width: 768px) {
     .container {

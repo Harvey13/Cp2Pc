@@ -54,7 +54,20 @@ contextBridge.exposeInMainWorld('api', {
 
     // Événements de progression
     onCopyProgress: (callback) => {
-        ipcRenderer.on('copy-progress', (event, progress) => callback(progress));
+        ipcRenderer.on('copy-progress', (event, progress) => {
+            callback({
+                status: progress.status,
+                mapping: progress.mapping,
+                current: progress.current,
+                total: progress.total,
+                file: progress.file,
+                percentage: progress.percentage || Math.round((progress.current / progress.total) * 100),
+                transferred: progress.transferred || progress.current,
+                speed: progress.speed || 0,
+                remainingTime: progress.remainingTime || 0,
+                error: progress.error
+            });
+        });
     },
         
     // Annulation de la copie

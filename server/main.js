@@ -22,22 +22,18 @@ let connectedDevice = null;
 let lastPingTime = null;
 let copyInProgress = false;
 let cancelCopyRequested = false;
-let currentConfig = {
-    maxFiles: 1000,
-    language: 'fr',
-    mappings: []
-};
+let currentConfig = null;
 
 const PING_TIMEOUT = 10000; // 10 secondes
 
-// Configuration par défaut
-const DEFAULT_CONFIG = {
+// Configuration minimale par défaut (utilisée uniquement à la première installation)
+const MINIMAL_CONFIG = {
     maxFiles: 1000,
     language: 'fr',
     mappings: [],
     localMode: false,
     logs: {
-        activeTypes: [LogTypes.CONFIG, LogTypes.INFO, LogTypes.ERROR]
+        activeTypes: ['CONFIG', 'INFO', 'ERROR']
     }
 };
 
@@ -242,12 +238,24 @@ function createMappingWindow() {
 async function loadConfig() {
     try {
         const configPath = path.join(app.getPath('userData'), 'config.json');
+        
+        // Vérifier si le fichier existe
+        try {
+            await fsPromises.access(configPath);
+        } catch {
+            // Le fichier n'existe pas, créer une configuration minimale
+            await fsPromises.writeFile(configPath, JSON.stringify(MINIMAL_CONFIG, null, 2));
+            logger.console_log(LogTypes.CONFIG, '[Config] Création de la configuration initiale');
+        }
+        
+        // Charger la configuration
         const data = await fsPromises.readFile(configPath, 'utf8');
-        currentConfig = { ...DEFAULT_CONFIG, ...JSON.parse(data) };
+        currentConfig = JSON.parse(data);
         logger.console_log(LogTypes.CONFIG, '[Config] Configuration chargée:', currentConfig);
+        
     } catch (error) {
-        logger.console_log(LogTypes.CONFIG, '[Config] Fichier de configuration non trouvé, utilisation des valeurs par défaut');
-        currentConfig = { ...DEFAULT_CONFIG };
+        logger.console_log(LogTypes.ERROR, '[Config] Erreur fatale lors du chargement de la configuration:', error);
+        throw error;
     }
     return currentConfig;
 }
@@ -255,9 +263,8 @@ async function loadConfig() {
 async function saveConfig(config) {
     try {
         const configPath = path.join(app.getPath('userData'), 'config.json');
-        const newConfig = { ...currentConfig, ...config };
-        await fsPromises.writeFile(configPath, JSON.stringify(newConfig, null, 2));
-        currentConfig = newConfig;
+        await fsPromises.writeFile(configPath, JSON.stringify(config, null, 2));
+        currentConfig = config;
         logger.console_log(LogTypes.CONFIG, '[Config] Configuration sauvegardée:', currentConfig);
         return true;
     } catch (error) {
@@ -412,116 +419,126 @@ function setupIPC() {
         try {
             const sourcePath = mapping.sourcePath;
             const destPath = mapping.destPath;
-
-            // Vérifier que les chemins existent
-            await fsPromises.access(sourcePath);
             
-            // Créer le dossier de destination s'il n'existe pas
-            await fsPromises.mkdir(destPath, { recursive: true });
-
-            // Lire le contenu du dossier source
-            const files = await fsPromises.readdir(sourcePath, { withFileTypes: true });
-            const totalFiles = files.filter(file => file.isFile()).length;
-            let copiedFiles = 0;
-            
-            // Émettre le début de la copie pour ce mapping
-            event.sender.send('copy-progress', {
-                mapping: mapping.title,
-                current: 0,
-                total: totalFiles,
-                status: 'starting'
-            });
-            
-            for (const file of files) {
-                // Vérifier si l'annulation a été demandée
-                if (cancelCopyRequested) {
-                    throw new Error("Copie annulée par l'utilisateur");
-                }
-
-                const srcFile = path.join(sourcePath, file.name);
-                const destFile = path.join(destPath, file.name);
-                
-                if (file.isFile()) {
-                    await fsPromises.copyFile(srcFile, destFile);
-                    copiedFiles++;
-                    
-                    // Émettre la progression
+            const { processMapping } = require('./src/fileProcessor');
+            await processMapping({
+                mapping,
+                onProgress: (progress) => {
+                    // Envoyer la progression au client
                     event.sender.send('copy-progress', {
-                        mapping: mapping.title,
-                        current: copiedFiles,
-                        total: totalFiles,
-                        status: 'copying',
-                        currentFile: file.name
+                        status: progress.status,
+                        mapping: progress.mapping,
+                        current: progress.current,
+                        total: progress.total,
+                        file: progress.file,
+                        percentage: Math.round((progress.current / progress.total) * 100),
+                        transferred: progress.current,
+                        remainingTime: 0,  // À calculer si nécessaire
+                        speed: 0  // À calculer si nécessaire
                     });
-                    
-                    logger.console_log(LogTypes.INFO, `Copié: ${file.name}`);
+                },
+                onComplete: (result) => {
+                    // Envoyer la fin de la copie au client
+                    event.sender.send('copy-progress', {
+                        status: 'completed',
+                        mapping: result.mapping,
+                        current: result.processed,
+                        total: result.total,
+                        percentage: 100,
+                        transferred: result.processed
+                    });
                 }
-            }
-            
-            // Émettre la fin de la copie pour ce mapping
-            event.sender.send('copy-progress', {
-                mapping: mapping.title,
-                current: totalFiles,
-                total: totalFiles,
-                status: 'completed'
             });
             
             return true;
         } catch (error) {
-            // Émettre l'erreur
+            logger.console_log(LogTypes.ERROR, 'Error copying files:', error);
+            // Envoyer l'erreur au client
             event.sender.send('copy-progress', {
-                mapping: mapping.title,
                 status: 'error',
                 error: error.message
             });
-            
-            logger.console_log(LogTypes.ERROR, `Erreur lors de la copie de ${mapping.title}:`, error);
             throw error;
         }
     }
 
-    ipcMain.handle('start-copy', async (event, specificMappings = null) => {
-        try {
-            const currentConfig = await loadConfig();
-            if (!currentConfig.mappings || currentConfig.mappings.length === 0) {
-                throw new Error('Aucun mapping configuré');
-            }
+    // Gestionnaire de l'événement start-copy
+    ipcMain.handle('start-copy', async (event, mappings = null) => {
+        logger.console_log(LogTypes.INFO, '🚀 Réception de la demande de copie', {
+            mappingsCount: mappings ? mappings.length : 'tous les mappings'
+        });
 
-            // Utiliser soit les mappings spécifiques, soit tous les mappings
-            const mappingsToProcess = specificMappings || currentConfig.mappings;
-            
+        if (copyInProgress) {
+            logger.console_log(LogTypes.INFO, '⚠️ Une copie est déjà en cours');
+            throw new Error('Une copie est déjà en cours');
+        }
+
+        try {
+            copyInProgress = true;
+            cancelCopyRequested = false;
+
+            // Si aucun mapping n'est spécifié, utiliser tous les mappings
+            const mappingsToProcess = mappings || currentConfig.mappings;
+            logger.console_log(LogTypes.INFO, '📋 Mappings à traiter', {
+                count: mappingsToProcess.length,
+                mappings: mappingsToProcess.map(m => ({ title: m.title, id: m.id }))
+            });
+
+            // Envoyer l'événement de démarrage
             event.sender.send('copy-progress', {
                 status: 'start',
                 total: mappingsToProcess.length
             });
-            
+
             for (const mapping of mappingsToProcess) {
                 if (cancelCopyRequested) {
-                    throw new Error("Copie annulée par l'utilisateur");
+                    logger.console_log(LogTypes.INFO, '❌ Copie annulée');
+                    event.sender.send('copy-progress', {
+                        status: 'error',
+                        error: 'Copie annulée par l\'utilisateur'
+                    });
+                    break;
                 }
+                logger.console_log(LogTypes.INFO, '📂 Démarrage de la copie pour le mapping', {
+                    title: mapping.title,
+                    sourcePath: mapping.sourcePath,
+                    destPath: mapping.destPath
+                });
                 await copyLocalFiles(mapping, event);
+                logger.console_log(LogTypes.INFO, '✅ Copie terminée pour le mapping', {
+                    title: mapping.title
+                });
             }
 
-            event.sender.send('copy-progress', { status: 'finished' });
-            cancelCopyRequested = false;
+            // Envoyer l'événement de fin de copie
+            event.sender.send('copy-progress', {
+                status: 'finished'
+            });
 
+            return true;
         } catch (error) {
+            logger.console_log(LogTypes.ERROR, '❌ Erreur pendant la copie:', error);
+            // Envoyer l'erreur au client
             event.sender.send('copy-progress', {
                 status: 'error',
                 error: error.message
             });
             throw error;
+        } finally {
+            copyInProgress = false;
+            cancelCopyRequested = false;
+            // S'assurer que l'événement finished est envoyé même en cas d'erreur
+            event.sender.send('copy-progress', {
+                status: 'finished'
+            });
+            logger.console_log(LogTypes.INFO, '🏁 Processus de copie terminé');
         }
     });
 
-    // Gestion de l'annulation de la copie
-    ipcMain.handle('cancel-copy', async () => {
-        if (copyInProgress) {
-            cancelCopyRequested = true;
-            logger.console_log(LogTypes.INFO, 'Annulation de la copie demandée');
-            return true;
-        }
-        return false;
+    // Gestionnaire pour annuler la copie
+    ipcMain.handle('cancel-copy', () => {
+        logger.console_log(LogTypes.INFO, '🛑 Cancel copy requested');
+        cancelCopyRequested = true;
     });
 
     // Gestion des dossiers

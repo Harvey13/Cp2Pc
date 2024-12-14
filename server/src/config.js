@@ -65,4 +65,7 @@ class Config {
     }
 }
 
-module.exports = new Config();
+module.exports = {
+    MAX_FILES_PER_FOLDER: 100, // Nombre maximum de fichiers par dossier
+    config: new Config()
+};

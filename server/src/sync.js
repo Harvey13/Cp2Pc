@@ -20,57 +20,12 @@ class SyncManager {
         }
     }
 
-    async copyFiles(sourcePath, destinationBase) {
-        try {
-            // Vérifier si le dossier de destination existe
-            if (!fs.existsSync(destinationBase)) {
-                fs.mkdirSync(destinationBase, { recursive: true });
-            }
-
-            // Trouver ou créer le dossier de destination approprié
-            let currentDestFolder = path.join(destinationBase, 'Photo_01');
-            let fileCount = 0;
-
-            if (fs.existsSync(currentDestFolder)) {
-                fileCount = fs.readdirSync(currentDestFolder).length;
-                if (fileCount >= config.maxFilesPerFolder) {
-                    const nextIndex = this.getNextFolderIndex(destinationBase);
-                    currentDestFolder = path.join(destinationBase, `Photo_${String(nextIndex).padStart(2, '0')}`);
-                    fs.mkdirSync(currentDestFolder);
-                    fileCount = 0;
-                }
-            } else {
-                fs.mkdirSync(currentDestFolder);
-            }
-
-            // Copier les fichiers
-            const files = fs.readdirSync(sourcePath);
-            for (const file of files) {
-                const sourceFile = path.join(sourcePath, file);
-                const destFile = path.join(currentDestFolder, file);
-                
-                if (fs.existsSync(destFile)) {
-                    log('warn', `File already exists: ${file}`);
-                    continue;
-                }
-
-                fs.copyFileSync(sourceFile, destFile);
-                log('info', `Copied file: ${file}`);
-
-                fileCount++;
-                if (fileCount >= config.maxFilesPerFolder) {
-                    const nextIndex = this.getNextFolderIndex(destinationBase);
-                    currentDestFolder = path.join(destinationBase, `Photo_${String(nextIndex).padStart(2, '0')}`);
-                    fs.mkdirSync(currentDestFolder);
-                    fileCount = 0;
-                }
-            }
-
-            return true;
-        } catch (error) {
-            log('error', 'Error copying files', { error: error.message });
-            return false;
-        }
+    async transferFiles(sourcePath, destinationBase) {
+        log('info', '⚠️ Tentative d\'utilisation du SyncManager désactivé', {
+            sourcePath,
+            destinationBase
+        });
+        throw new Error('SyncManager est temporairement désactivé. Utilisez la connexion socket.');
     }
 }
 

@@ -1,14 +1,13 @@
 const path = require('path');
-const fs = require('fs');
+const fs = require('fs').promises;
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
-const express = require('express');
-const { Server } = require('socket.io');
-const http = require('http');
+const { setupServer, setupSocketIO } = require('./server');
 const { networkInterfaces } = require('os');
+const { log, LogTypes, log_cli } = require('./logger');
+const fileProcessor = require('./fileProcessor');
 
 // Variables globales
 let mainWindow = null;
-let io = null;
 let server = null;
 
 // Configuration des chemins
@@ -20,7 +19,7 @@ const APP_PATH = app.getAppPath();
 // Utilitaire de logging
 function debugLog(...args) {
     const timestamp = new Date().toISOString().split('T')[1].split('.')[0];
-    console.log(`[${timestamp}] [Main]`, ...args);
+    log_cli('DEBUG', `[${timestamp}] [Main] ${args.join(' ')}`);
 }
 
 debugLog('📂 Répertoires:');
@@ -103,13 +102,8 @@ function setupIPC() {
     ipcMain.handle('sync-test-echo', async (event, data) => {
         debugLog('📥 Test echo synchrone reçu:', data);
         
-        if (!io) {
-            debugLog('❌ Socket.IO non initialisé');
-            return { error: 'Socket.IO non initialisé' };
-        }
-
         try {
-            debugLog('📤 Envoi echo au mobile via Socket.IO');
+            debugLog('📤 Envoi echo au mobile via IPC');
             
             // Créer une promesse pour attendre la réponse
             const response = await new Promise((resolve, reject) => {
@@ -118,14 +112,14 @@ function setupIPC() {
                     reject(new Error('Timeout: pas de réponse du mobile'));
                 }, 5000);
 
-                io.once('mobile-echo-response', (response) => {
+                ipcMain.once('mobile-echo-response', (event, response) => {
                     debugLog('📱 Réponse echo reçue du mobile:', response);
                     clearTimeout(timeout);
                     resolve(response);
                 });
 
                 // Envoyer l'écho au mobile
-                io.emit('mobile-echo', data);
+                mainWindow.webContents.send('mobile-echo', data);
                 debugLog('📤 Echo envoyé au mobile, attente de la réponse...');
             });
 
@@ -139,15 +133,9 @@ function setupIPC() {
     // Récupération de l'état du mobile
     ipcMain.handle('get-mobile-status', async () => {
         debugLog('📱 Demande de l\'état du mobile');
-        if (!io) {
-            return { connected: false };
-        }
         
         // Vérifier si un client mobile est connecté
-        const sockets = await io.fetchSockets();
-        const mobileSocket = sockets.find(socket => socket.handshake.query.clientType === 'mobile');
-        
-        return { connected: !!mobileSocket };
+        return { connected: false };
     });
 
     // Configuration du mapping
@@ -257,15 +245,13 @@ function setupIPC() {
     ipcMain.on('browse-mobile-folder', async (event, { mappingId }) => {
         debugLog('📱 Demande de navigation mobile reçue pour le mapping:', mappingId);
         
-        if (!io) return;
-
         if (!isWindowValid()) return;
 
         try {
-            io.emit('list-mobile-folders', { mappingId });
+            mainWindow.webContents.send('list-mobile-folders', { mappingId });
             debugLog('📤 Événement list-mobile-folders envoyé');
 
-            io.once('mobile-folders-list', (data) => {
+            ipcMain.once('mobile-folders-list', (event, data) => {
                 if (!data) {
                     debugLog('❌ Aucune donnée reçue pour mobile-folders-list');
                     return;
@@ -278,6 +264,77 @@ function setupIPC() {
             });
         } catch (error) {
             debugLog('❌ Erreur lors de la navigation mobile:', error);
+        }
+    });
+
+    // Gestion de la copie
+    ipcMain.handle('start-copy', async (event, specificMappings = null) => {
+        log('INFO', '🚀 Démarrage de la copie', { 
+            mappings: specificMappings,
+            timestamp: new Date().toISOString()
+        });
+        
+        try {
+            // Récupérer les mappings à traiter
+            const mappingsToProcess = specificMappings || currentConfig.mappings;
+            log('INFO', '📊 Initialisation de la copie', { 
+                count: mappingsToProcess.length,
+                mappings: mappingsToProcess.map(m => ({
+                    id: m.id,
+                    title: m.title
+                }))
+            });
+
+            // Vérifier la validité des mappings
+            for (const mapping of mappingsToProcess) {
+                if (!mapping.sourcePath || !mapping.destPath) {
+                    throw new Error(`Mapping invalide: chemins manquants pour ${mapping.title}`);
+                }
+            }
+
+            // Traiter chaque mapping
+            for (const mapping of mappingsToProcess) {
+                try {
+                    await fileProcessor.processMapping({
+                        mapping,
+                        onProgress: (progress) => {
+                            event.sender.send('copy-progress', {
+                                mapping: mapping.title,
+                                current: progress.current,
+                                total: progress.total,
+                                status: progress.status,
+                                file: progress.file
+                            });
+                        },
+                        onComplete: (result) => {
+                            event.sender.send('copy-progress', {
+                                mapping: mapping.title,
+                                current: result.total,
+                                total: result.total,
+                                status: 'completed'
+                            });
+                        }
+                    });
+                } catch (error) {
+                    log('ERROR', '❌ Erreur lors du traitement du mapping', { 
+                        title: mapping.title,
+                        error: error.message,
+                        stack: error.stack
+                    });
+                    throw error;
+                }
+            }
+
+            log('INFO', '✅ Processus de copie terminé avec succès', {
+                totalMappings: mappingsToProcess.length
+            });
+            return { success: true };
+        } catch (error) {
+            log('ERROR', '❌ Erreur globale dans le processus de copie', {
+                error: error.message,
+                stack: error.stack
+            });
+            return { error: error.message };
         }
     });
 
@@ -311,90 +368,12 @@ function setupDiscoveryService(port) {
     };
     
     // Répondre aux requêtes de découverte
-    if (io) {
-        io.on('discovery-request', (socket) => {
-            debugLog('🔍 Requête de découverte reçue');
-            socket.emit('discovery-response', discoveryInfo);
-        });
-    }
+    ipcMain.on('discovery-request', (event) => {
+        debugLog('🔍 Requête de découverte reçue');
+        event.sender.send('discovery-response', discoveryInfo);
+    });
     
     debugLog('✅ Service de découverte configuré');
-}
-
-// Configuration du serveur Express et Socket.IO
-function setupServer() {
-    const app = express();
-    app.use(express.static(PUBLIC_DIR));
-    
-    server = http.createServer(app);
-    io = new Server(server, {
-        cors: {
-            origin: "*",
-            methods: ["GET", "POST"]
-        }
-    });
-
-    io.on('connection', (socket) => {
-        const clientType = socket.handshake.query.clientType;
-        debugLog('🔌 Nouvelle connexion Socket.IO:', { clientType });
-
-        // Si c'est un client mobile
-        if (clientType === 'mobile') {
-            debugLog('📱 Client mobile connecté');
-            // Notifier tous les clients de la connexion mobile
-            io.emit('mobile-status', { connected: true });
-        }
-        
-        socket.on('disconnect', () => {
-            debugLog('🔌 Déconnexion Socket.IO:', { clientType });
-            
-            // Si c'était un client mobile
-            if (clientType === 'mobile') {
-                debugLog('📱 Client mobile déconnecté');
-                // Notifier tous les clients de la déconnexion mobile
-                io.emit('mobile-status', { connected: false });
-            }
-        });
-
-        // Gestion des erreurs de socket
-        socket.on('error', (error) => {
-            debugLog('❌ Erreur Socket.IO:', error);
-            // Si c'était un client mobile, notifier la déconnexion
-            if (clientType === 'mobile') {
-                io.emit('mobile-status', { connected: false });
-            }
-        });
-
-        // Echo mobile
-        socket.on('mobile-echo-response', (data) => {
-            debugLog('📱 Réponse echo reçue du mobile:', data);
-        });
-
-        // Liste des dossiers mobiles
-        socket.on('mobile-folders-list', (data) => {
-            debugLog('📂 Liste des dossiers mobiles reçue:', data);
-            if (isWindowValid()) {
-                mainWindow.webContents.send('show-mobile-folders', data);
-            }
-        });
-    });
-
-    const port = 3000;
-    server.listen(port, () => {
-        console.log('info: Serveur démarré sur le port %d', port, {
-            timestamp: new Date().toISOString()
-        });
-    });
-
-    // Gestion des erreurs du serveur
-    server.on('error', (error) => {
-        debugLog('❌ Erreur serveur:', error);
-    });
-
-    // Service de découverte
-    setupDiscoveryService(port);
-
-    debugLog('🔧 Serveur configuré, Socket.IO initialisé:', !!io);
 }
 
 // Gestion des erreurs globales
@@ -406,6 +385,12 @@ process.on('unhandledRejection', (error) => {
     debugLog('❌ Promise rejetée non gérée:', error);
 });
 
+const defaultConfig = {
+    logs: {
+        activeTypes: [LogTypes.CONFIG, LogTypes.INFO, LogTypes.ERROR, LogTypes.DEBUG]
+    }
+};
+
 app.whenReady().then(async () => {
     debugLog('🎬 Application prête');
     
@@ -413,8 +398,10 @@ app.whenReady().then(async () => {
     setupIPC();
     debugLog('🔌 IPC configuré');
     
-    setupServer();
-    debugLog('🔌 Serveur configuré, Socket.IO initialisé:', !!io);
+    // Démarrer le serveur Socket.IO
+    server = setupServer();
+    const io = setupSocketIO(server);
+    debugLog('🔌 Serveur Socket.IO configuré');
     
     createWindow();
 });

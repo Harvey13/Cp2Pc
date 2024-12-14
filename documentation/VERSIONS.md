@@ -1,5 +1,19 @@
 # Historique des versions
 
+
+
+## v0.16 (2024-12-14)
+### Nouvelles fonctionnalités
+- Gestion automatique des dossiers de destination selon le nombre de fichiers
+- Création automatique de nouveaux dossiers quand la limite est atteinte
+- Configuration du nombre maximum de fichiers par dossier
+
+### Améliorations
+- Correction de l'affichage de la barre de progression
+- Meilleure gestion des événements de progression
+- Réactivation automatique des boutons à la fin de la copie
+- Logs plus détaillés pendant la copie
+
 ## v0.15 (2024-12-13)
 ### Améliorations
 - Désactivation du bouton de lancement si la source ou la destination n'est pas définie

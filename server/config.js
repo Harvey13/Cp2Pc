@@ -17,7 +17,8 @@ const config = {
             LogTypes.INFO,
             LogTypes.DEBUG,
             LogTypes.SERVER,
-            LogTypes.IPC
+            LogTypes.IPC,
+            LogTypes.DEBUG
         ]
     },
     maxFiles: 1000,

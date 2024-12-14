@@ -9,7 +9,8 @@ const LogTypes = {
     CONFIG: 'CONFIG', // Configuration
     INFO: 'INFO',     // Informations générales
     ERROR: 'ERROR',   // Erreurs
-    SERVER: 'SERVER'  // Événements serveur
+    SERVER: 'SERVER', // Événements serveur
+    DEBUG: 'DEBUG'    // Messages de débogage
 };
 
 // Créer une instance unique du logger
@@ -39,5 +40,7 @@ const logger = new Logger();
 module.exports = {
     LogTypes,
     console_log: logger.console_log.bind(logger),
+    log_cli: logger.console_log.bind(logger),
+    log_dev: logger.console_log.bind(logger),
     setLogTypes: logger.setLogTypes.bind(logger)
 };
