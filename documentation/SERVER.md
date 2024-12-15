@@ -20,11 +20,32 @@
 
 ### 2. Composants Principaux
 
-#### Serveur Express (/server/main.js)
-- Port d'écoute : 3000
-- Endpoints :
-  - `/ping` : Endpoint de découverte et keepalive
-  - Routes statiques pour l'interface web
+#### Backend (Node.js + Express)
+- Serveur HTTP pour l'interface web
+- API REST pour la gestion des mappings
+- Gestion des opérations de fichiers
+- Système de notifications en temps réel
+- Validation des données entrantes
+- Gestion automatique des dossiers de destination
+
+#### Frontend (HTML + CSS + JavaScript)
+- Interface utilisateur responsive
+- Gestion d'état côté client
+- Validation des formulaires
+- Retour visuel des actions
+- Gestion des erreurs
+
+#### API REST
+- GET /api/mappings : Liste des mappings
+- POST /api/mappings : Création d'un mapping
+- PUT /api/mappings/:id : Mise à jour d'un mapping
+- DELETE /api/mappings/:id : Suppression d'un mapping
+- POST /api/mappings/:id/start : Lancement d'un mapping
+- POST /api/mappings/start-all : Lancement de tous les mappings
+- POST /api/copy/start : Démarrage d'une copie
+- POST /api/copy/cancel : Annulation d'une copie
+- GET /api/copy/status : État de la copie en cours
+- GET /ping : Endpoint de découverte et keepalive
 
 #### Gestion des Connexions
 - Détection automatique des déconnexions
@@ -40,7 +61,7 @@
 #### Configuration (/server/config.js)
 - Mode développement/production
 - Paramètres configurables :
-  - Nombre maximum de fichiers
+  - Nombre maximum de fichiers par dossier
   - Langue de l'interface
   - Mappings de dossiers
 
@@ -69,18 +90,34 @@
 ### 6. Gestion des Fichiers
 - Système de mapping source/destination
 - Vérification d'existence avant création
-- Utilisation des commandes Windows natives
+- Utilisation de fs.copyFile pour la copie des fichiers
+- Aucun fichier sur le dossier destination ne doit être effacé
+- Gestion intelligente des dossiers de destination :
+  - Réutilisation des dossiers non pleins
+  - Création automatique de nouveaux dossiers quand la limite est atteinte
+  - Indexation incrémentale (_01, _02, etc.)
+- Filtrage des fichiers :
+  - Utilisation de la date du fichier le plus récent dans le dossier destination
+  - Vérification dans tous les dossiers indexés, en priorité le plus récent
+  - Ignore les fichiers .picasa.ini
+- Validation et sécurité :
+  - Validation des chemins
+  - Vérification des permissions
+  - Gestion des erreurs de fichiers
+  - Copie asynchrone avec surveillance de la progression
 
-## État Actuel du Développement (v0.01)
+## État Actuel du Développement (v0.18)
 
 ### Fonctionnalités Implémentées
 - Découverte automatique sur le réseau local
 - Détection intelligente des déconnexions
 - Interface de base
 - Configuration système
+- Gestion intelligente des dossiers de destination
+- Copie fiable des fichiers avec fs.copyFile
+- Filtrage des fichiers .picasa.ini
 
 ### En Cours de Développement
-- Transfert de fichiers
 - Interface de mapping complète
 - Gestion des erreurs avancée
 

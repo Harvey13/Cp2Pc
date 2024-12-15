@@ -1,5 +1,15 @@
 # Historique des versions
 
+## v0.18 (2024-12-15)
+- 🔧 Amélioration de la gestion des dossiers de destination
+  - Réutilisation intelligente des dossiers non pleins
+  - Création automatique des dossiers manquants
+- 🔄 Amélioration de la copie des fichiers
+  - Remplacement de xcopy par fs.copyFile pour plus de fiabilité
+  - Meilleure gestion des erreurs et des vérifications
+  - Logs plus détaillés pour le débogage
+- 🧹 Ignore les fichiers .picasa.ini lors de la copie
+
 ## v0.17 (2024-12-14)
 ### Corrections
 - Correction de l'état de connexion du mobile qui restait actif même lorsque le mobile était éteint
