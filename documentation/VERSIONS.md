@@ -1,5 +1,10 @@
 # Historique des versions
 
+## v0.19 (2024-12-16)
+- 🐛 Correction du bug de copie dans les dossiers pleins
+  - Vérification du nombre de fichiers dans le dossier de base avant utilisation
+  - Création automatique d'un nouveau dossier indexé si le dossier de base est plein
+
 ## v0.18 (2024-12-15)
 - 🔧 Amélioration de la gestion des dossiers de destination
   - Réutilisation intelligente des dossiers non pleins

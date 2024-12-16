@@ -3,11 +3,11 @@ class MappingList extends HTMLElement {
     constructor() {
         super();
         this.mappings = [];
-        this.currentProgress = null;
         this.copyInProgress = false;
+        this.currentProgress = null;
         this.isGlobalCopy = false;
-        this.render();
         this.setupProgressListener();
+        this.loadMappings();
     }
 
     // Charger les mappings depuis l'API
@@ -31,10 +31,12 @@ class MappingList extends HTMLElement {
     }
 
     render() {
+        console.log('Rendering MappingList with mappings:', this.mappings);
+
         // Header avec bouton de copie globale
         const header = `
             <div class="mappings-header">
-                <button class="start-copy-btn" title="Lancer la copie">
+                <button class="start-copy-btn" title="Lancer la copie" ${this.copyInProgress ? 'disabled' : ''}>
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="16" height="16">
                         <path fill="currentColor" d="M371.7 238l-176-107c-15.8-8.8-35.7 2.5-35.7 21v208c0 18.4 19.8 29.8 35.7 21l176-101c16.4-9.1 16.4-32.8 0-42zM504 256C504 119 393 8 256 8S8 119 8 256s111 248 248 248 248-111 248-248zm-448 0c0-110.5 89.5-200 200-200s200 89.5 200 200-89.5 200-200 200S56 366.5 56 256z"/>
                     </svg>
@@ -60,7 +62,6 @@ class MappingList extends HTMLElement {
             </div>
         `;
 
-        // Ajouter les écouteurs d'événements
         this.addEventListeners();
     }
 
@@ -299,17 +300,25 @@ class MappingList extends HTMLElement {
             }
         });
 
-        // Ajouter au DOM
-        document.body.appendChild(this.currentProgress);
+        // Ajouter au DOM à l'intérieur du composant MappingList
+        this.appendChild(this.currentProgress);
         console.log('✅ Progress bar added to DOM:', this.currentProgress);
     }
 
     hideProgress() {
         console.log('🚫 Hiding progress bar');
-        if (this.currentProgress) {
-            this.currentProgress.remove();
-            this.currentProgress = null;
+        if (this.currentProgress && this.currentProgress.parentNode) {
+            this.currentProgress.parentNode.removeChild(this.currentProgress);
+            console.log('✅ Progress bar removed from DOM');
+            
+            // Si une copie est en cours, on l'annule
+            if (this.copyInProgress && window.api) {
+                console.log('🛑 Cancelling copy due to progress bar removal');
+                window.api.cancelCopy();
+            }
         }
+        
+        this.currentProgress = null;
         this.copyInProgress = false;
         this.isGlobalCopy = false;
         this.enableAllCopyButtons();
@@ -325,12 +334,21 @@ class MappingList extends HTMLElement {
             
             if (progressBar && progressDetails && mappingTitleElement) {
                 const percentage = Math.round((current / total) * 100);
-                progressBar.querySelector('.progress-fill').style.width = `${percentage}%`;
-                progressDetails.textContent = currentFile ? `${current}/${total} - ${currentFile}` : `${current}/${total}`;
-                mappingTitleElement.textContent = mappingTitle || '';
-                console.log('✅ Progress updated:', percentage + '%');
+                const progressFill = progressBar.querySelector('.progress-fill');
+                if (progressFill) {
+                    progressFill.style.width = `${percentage}%`;
+                    progressDetails.textContent = currentFile ? `${current}/${total} - ${currentFile}` : `${current}/${total}`;
+                    mappingTitleElement.textContent = mappingTitle || '';
+                    console.log('✅ Progress updated:', percentage + '%');
+                } else {
+                    console.error('❌ Progress fill element not found');
+                }
             } else {
-                console.error('❌ Progress elements not found in DOM');
+                console.error('❌ Progress elements not found in DOM', {
+                    hasProgressBar: !!progressBar,
+                    hasProgressDetails: !!progressDetails,
+                    hasMappingTitle: !!mappingTitleElement
+                });
             }
         } else {
             console.error('❌ Progress bar not found in DOM');
@@ -381,5 +399,7 @@ class MappingList extends HTMLElement {
     }
 }
 
-// Enregistrer le composant
-customElements.define('mapping-list', MappingList);
+// Enregistrer le composant personnalisé
+if (!customElements.get('mapping-list')) {
+    customElements.define('mapping-list', MappingList);
+}

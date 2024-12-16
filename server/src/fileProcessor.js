@@ -1,7 +1,11 @@
 const fs = require('fs').promises;
+const fsSync = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
 const { log_cli, log_dev } = require(path.join(__dirname, '..', 'utils', 'logger'));
+const stream = require('stream');
+const util = require('util');
+const pipeline = util.promisify(stream.pipeline);
 
 /**
  * Trouve la date du fichier le plus récent dans un dossier et ses sous-dossiers indexés
@@ -110,33 +114,44 @@ async function directoryExists(dirPath) {
  */
 async function copyFileNative(src, dest) {
     try {
-        // Vérifier que le fichier source existe
-        try {
-            await fs.access(src);
-            log_cli('DEBUG', '✅ Fichier source trouvé', { src });
-        } catch (error) {
-            log_cli('ERROR', '❌ Fichier source introuvable', { src, error: error.message });
-            throw new Error(`Fichier source introuvable: ${src}`);
+        // Vérifier si l'annulation a été demandée
+        if (isCancelled) {
+            log_cli('DEBUG', '🛑 Copie annulée pendant la copie native', { src, dest });
+            return false;
         }
-        
-        // Vérifier et créer le dossier de destination si nécessaire
+
+        // Vérifier que le fichier source existe
+        log_cli('DEBUG', '🔍 Fichier source trouvé', { src });
+        await fs.access(src);
+
+        // Vérifier que le dossier destination existe
         const destDir = path.dirname(dest);
-        try {
-            await fs.access(destDir);
-            log_cli('DEBUG', '✅ Dossier destination existe', { destDir });
-        } catch (error) {
-            log_cli('INFO', '📁 Création du dossier destination', { destDir });
+        const destDirExists = await this.directoryExists(destDir);
+        log_cli('DEBUG', '🔍 Dossier destination existe', { destDir });
+
+        if (!destDirExists) {
             await fs.mkdir(destDir, { recursive: true });
         }
 
         // Copier le fichier
-        log_cli('DEBUG', '📄 Copie du fichier', { src, dest });
+        log_cli('DEBUG', '📝 Copie du fichier', {
+            src,
+            dest
+        });
+
+        // Vérifier à nouveau l'annulation avant de commencer la copie
+        if (isCancelled) {
+            log_cli('DEBUG', '🛑 Copie annulée juste avant la copie', { src, dest });
+            return false;
+        }
+
         await fs.copyFile(src, dest);
-        
-        // Vérifier que la copie a réussi
+
+        // Vérifier que le fichier a bien été copié
         try {
             await fs.access(dest);
             log_cli('DEBUG', '✅ Fichier copié avec succès', { dest });
+            return true;
         } catch (error) {
             log_cli('ERROR', '❌ Fichier destination non trouvé après copie', { dest, error: error.message });
             throw new Error(`Échec de la vérification après copie: ${dest}`);
@@ -147,7 +162,7 @@ async function copyFileNative(src, dest) {
             src,
             dest
         });
-        throw new Error(`Erreur lors de la copie: ${error.message}`);
+        return false;
     }
 }
 
@@ -163,80 +178,78 @@ async function copyFileNative(src, dest) {
  */
 async function copyFiles({ sourcePath, destPath, filename, mapping, onProgress }) {
     try {
+        // Vérifier si l'annulation a été demandée
+        if (isCancelled) {
+            log_cli('DEBUG', '🛑 Copie annulée', { filename });
+            if (onProgress) {
+                onProgress({
+                    file: filename,
+                    status: 'cancelled',
+                    mapping: mapping.title
+                });
+            }
+            return false;
+        }
+
         const srcFile = path.join(sourcePath, filename);
         const destFile = path.join(destPath, filename);
 
-        // S'assurer que le dossier de destination existe
-        try {
-            await fs.access(destPath);
-        } catch (error) {
-            log_cli('INFO', '📁 Création du dossier de destination', {
-                path: destPath
-            });
-            await fs.mkdir(destPath, { recursive: true });
-        }
-
-        log_cli('DEBUG', `📄 copyFiles`, {
-            file: filename,
-            mapping: mapping.title,
-            srcFile,
-            destFile
-        });
-
         // Vérifier si le fichier existe déjà
         try {
-            const srcStats = await fs.stat(srcFile);
-            let destStats;
-            
-            try {
-                destStats = await fs.stat(destFile);
-                
-                // Si le fichier existe et est plus récent ou de même date, ne pas copier
-                if (destStats.mtime >= srcStats.mtime) {
-                    log_cli('DEBUG', '📄 Fichier déjà à jour', {
-                        file: filename,
-                        mapping: mapping.title
-                    });
-                    if (onProgress) onProgress({ file: filename, status: 'skipped' });
-                    return false;
-                }
-            } catch (error) {
-                // Le fichier n'existe pas en destination, on continue la copie
-            }
-            
-            // Copier le fichier
-            log_cli('INFO', '📄 Copie du fichier', {
+            await fs.access(destFile);
+            log_cli('INFO', '⏭️ Fichier déjà existant, ignoré', {
                 file: filename,
                 mapping: mapping.title
             });
-            if (onProgress) onProgress({ file: filename, status: 'copying' });
-            
-            await copyFileNative(srcFile, destFile);
-            
+            if (onProgress) onProgress({ file: filename, status: 'skipped' });
+            return false;
+        } catch {
+            // Le fichier n'existe pas, on continue
+        }
+
+        // Vérifier à nouveau l'annulation avant de commencer la copie
+        if (isCancelled) {
+            log_cli('DEBUG', '🛑 Copie annulée avant copie', { filename });
+            if (onProgress) {
+                onProgress({
+                    file: filename,
+                    status: 'cancelled',
+                    mapping: mapping.title
+                });
+            }
+            return false;
+        }
+
+        if (onProgress) onProgress({ file: filename, status: 'copying' });
+        
+        const copied = await copyFileNative(srcFile, destFile);
+        
+        if (copied) {
             log_cli('INFO', '✅ Fichier copié', {
                 file: filename,
-                mapping: mapping.title
-            });
-            log_dev('INFO', '✅ Fichier copié', {
-                file: filename,
-                mapping: mapping.title
+                mapping: mapping.title,
+                source: srcFile,
+                destination: destFile
             });
             
             if (onProgress) onProgress({ file: filename, status: 'copied' });
             return true;
-
-        } catch (error) {
-            log_cli('ERROR', `❌ Erreur lors de la copie`, {
+        } else {
+            log_cli('INFO', '🛑 Copie annulée ou échouée', {
                 file: filename,
-                mapping: mapping.title,
-                error: error.message,
-                stack: error.stack
+                mapping: mapping.title
             });
-            if (onProgress) onProgress({ file: filename, status: 'error', error: error.message });
-            throw error;
+            return false;
         }
+
     } catch (error) {
-        throw error;
+        log_cli('ERROR', `❌ Erreur lors de la copie`, {
+            error: error.message,
+            file: filename,
+            mapping: mapping.title
+        });
+        if (onProgress) onProgress({ file: filename, status: 'error' });
+        return false;
     }
 }
 
@@ -307,6 +320,22 @@ async function findLastExistingIndexedFolder(basePath) {
  */
 async function findNextDestination(basePath, maxFiles) {
     try {
+        // Vérifier d'abord si le dossier de base existe
+        const baseExists = await directoryExists(basePath);
+        if (baseExists) {
+            // Vérifier le nombre de fichiers dans le dossier de base
+            const baseFileCount = await getFileCount(basePath);
+            log_cli('INFO', '📂 Vérification du dossier de base', {
+                path: basePath,
+                fileCount: baseFileCount,
+                maxFiles
+            });
+
+            if (baseFileCount < maxFiles) {
+                return basePath;
+            }
+        }
+
         // Trouver le dernier dossier indexé existant
         const { path: lastPath, index: lastIndex } = await findLastExistingIndexedFolder(basePath);
         log_cli('INFO', '📂 Dernier dossier indexé trouvé', {
@@ -320,8 +349,7 @@ async function findNextDestination(basePath, maxFiles) {
         if (fileCount >= maxFiles) {
             // Si le dossier est plein, créer le prochain
             const nextIndex = lastIndex + 1;
-            const nextPath = nextIndex === 0 ? basePath : 
-                path.join(path.dirname(basePath), `${path.basename(basePath)}_${String(nextIndex).padStart(2, '0')}`);
+            const nextPath = path.join(path.dirname(basePath), `${path.basename(basePath)}_${String(nextIndex).padStart(2, '0')}`);
 
             log_cli('INFO', '📂 Création du prochain dossier indexé (dossier actuel plein)', {
                 currentPath: lastPath,
@@ -387,6 +415,13 @@ async function processMapping({ mapping, onProgress, onComplete }) {
             destPath: mapping.destPath
         });
 
+        // Vérifier si l'annulation a été demandée
+        if (isCancelled) {
+            log_cli('INFO', '🛑 Annulation demandée avant le début du traitement');
+            if (onComplete) onComplete({ total: 0, processed: 0, copied: 0, cancelled: true });
+            return;
+        }
+
         // Vérifier que le dossier source existe
         try {
             await fs.access(mapping.sourcePath);
@@ -400,6 +435,13 @@ async function processMapping({ mapping, onProgress, onComplete }) {
         const config = require(path.join(__dirname, '..', 'config.json'));
         const maxFiles = config.maxFiles || 100;
 
+        // Vérifier si l'annulation a été demandée
+        if (isCancelled) {
+            log_cli('INFO', '🛑 Annulation demandée après la vérification du dossier source');
+            if (onComplete) onComplete({ total: 0, processed: 0, copied: 0, cancelled: true });
+            return;
+        }
+
         // Trouver la date la plus récente dans les dossiers de destination
         const latestDestDate = await findLatestFileDate(mapping.destPath);
         log_cli('INFO', '📅 Date filtre pour les fichiers source', {
@@ -408,67 +450,93 @@ async function processMapping({ mapping, onProgress, onComplete }) {
             destPath: mapping.destPath
         });
 
-        // Trouver le bon dossier de destination
-        log_cli('DEBUG', '📂 Vérification du dossier de destination', {
-            destPath: mapping.destPath,
-            maxFiles
-        });
-        
-        // Vérifier si le dossier destination existe
-        const destExists = await directoryExists(mapping.destPath);
-        if (!destExists) {
-            log_cli('INFO', '📁 Création du dossier destination initial', {
-                path: mapping.destPath
-            });
-            await fs.mkdir(mapping.destPath, { recursive: true });
+        // Vérifier si l'annulation a été demandée
+        if (isCancelled) {
+            log_cli('INFO', '🛑 Annulation demandée après la recherche de la date la plus récente');
+            if (onComplete) onComplete({ total: 0, processed: 0, copied: 0, cancelled: true });
+            return;
         }
 
-        const newDestPath = await findNextDestination(mapping.destPath, maxFiles);
-        if (newDestPath !== mapping.destPath) {
-            log_cli('INFO', "📂 Création d'un nouveau dossier de destination", {
-                oldPath: mapping.destPath,
-                newPath: newDestPath,
-                reason: 'Dossier actuel plein (> ' + maxFiles + ' fichiers)'
-            });
-            mapping.destPath = newDestPath;
-            // Créer le nouveau dossier
-            await fs.mkdir(newDestPath, { recursive: true });
+        // Fonction récursive pour lister les fichiers
+        async function listFilesRecursively(dir, fileList = []) {
+            if (isCancelled) {
+                log_cli('INFO', '🛑 Annulation demandée pendant le listage des fichiers');
+                return fileList;
+            }
+
+            const entries = await fs.readdir(dir, { withFileTypes: true });
+            for (const entry of entries) {
+                if (isCancelled) {
+                    log_cli('INFO', '🛑 Annulation demandée pendant le traitement des entrées');
+                    return fileList;
+                }
+
+                const fullPath = path.join(dir, entry.name);
+                if (entry.name === '.picasa.ini') continue;
+                if (entry.isDirectory()) {
+                    continue;
+                } else {
+                    const relativePath = path.relative(mapping.sourcePath, fullPath);
+                    fileList.push(relativePath);
+                }
+            }
+            return fileList;
         }
 
-        // Lister et filtrer les fichiers source plus récents
-        const files = await fs.readdir(mapping.sourcePath);
+        // Lister les fichiers source
+        const allFiles = await listFilesRecursively(mapping.sourcePath);
+
+        // Vérifier si l'annulation a été demandée
+        if (isCancelled) {
+            log_cli('INFO', '🛑 Annulation demandée après le listage des fichiers');
+            if (onComplete) onComplete({ total: allFiles.length, processed: 0, copied: 0, cancelled: true });
+            return;
+        }
+
         const recentFiles = [];
-        
-        log_cli('DEBUG', '📂 Analyse des fichiers source', {
-            total: files.length,
-            sourcePath: mapping.sourcePath
-        });
+        let processedFiles = 0;
 
-        for (const file of files) {
-            // Ignorer les fichiers .picasa.ini
-            if (file === '.picasa.ini') continue;
-            
+        // Analyser chaque fichier
+        for (const file of allFiles) {
+            if (isCancelled) {
+                log_cli('INFO', '🛑 Annulation demandée pendant l\'analyse des fichiers', {
+                    processed: processedFiles,
+                    total: allFiles.length
+                });
+                if (onComplete) onComplete({ total: allFiles.length, processed: processedFiles, copied: 0, cancelled: true });
+                return;
+            }
+
             const srcFile = path.join(mapping.sourcePath, file);
-            const stats = await fs.stat(srcFile);
-            log_cli('DEBUG', `📅 Comparaison des dates pour ${file}`, {
-                fileDate: stats.mtime.toISOString(),
-                latestDestDate: latestDestDate.toISOString(),
-                isMoreRecent: stats.mtime > latestDestDate
-            });
-            if (stats.mtime > latestDestDate) {
-                recentFiles.push(file);
+            try {
+                const stats = await fs.stat(srcFile);
+                if (stats.mtime > latestDestDate) {
+                    recentFiles.push(file);
+                }
+                processedFiles++;
+            } catch (error) {
+                log_cli('ERROR', `❌ Erreur lors de l'analyse du fichier ${file}:`, error);
+                processedFiles++;
+                continue;
             }
         }
 
+        // Vérifier si l'annulation a été demandée
+        if (isCancelled) {
+            log_cli('INFO', '🛑 Annulation demandée après l\'analyse des fichiers');
+            if (onComplete) onComplete({ total: allFiles.length, processed: processedFiles, copied: 0, cancelled: true });
+            return;
+        }
+
         log_cli('INFO', `📂 Fichiers trouvés`, {
-            total: files.length,
+            total: allFiles.length,
             recent: recentFiles.length,
             mapping: mapping.title,
             latestDestDate: latestDestDate.toISOString()
         });
 
         const totalFiles = recentFiles.length;
-        let processedFiles = 0;
+        processedFiles = 0;
         let copiedFiles = 0;
 
         // Informer du début du traitement
@@ -483,30 +551,23 @@ async function processMapping({ mapping, onProgress, onComplete }) {
 
         // Traiter chaque fichier
         for (const filename of recentFiles) {
-            // Vérifier si l'annulation a été demandée
             if (isCancelled) {
-                log_cli('INFO', '🛑 Copie annulée par l\'utilisateur', {
-                    mapping: mapping.title
+                log_cli('INFO', '🛑 Annulation demandée pendant la copie des fichiers', {
+                    processed: processedFiles,
+                    copied: copiedFiles,
+                    total: totalFiles
                 });
-                if (onProgress) {
-                    onProgress({
-                        status: 'cancelled',
-                        mapping: mapping.title,
-                        current: processedFiles,
-                        total: totalFiles
-                    });
-                }
+                if (onComplete) onComplete({ total: totalFiles, processed: processedFiles, copied: copiedFiles, cancelled: true });
                 return;
             }
 
-            log_cli('DEBUG', `📄 Traitement du fichier: ${filename}`);
             try {
                 const copied = await copyFiles({
                     sourcePath: mapping.sourcePath,
                     destPath: mapping.destPath,
                     filename,
                     mapping,
-                    onProgress: (file) => {
+                    onProgress: () => {
                         if (onProgress) onProgress({
                             status: 'copying',
                             mapping: mapping.title,
@@ -520,52 +581,49 @@ async function processMapping({ mapping, onProgress, onComplete }) {
                 processedFiles++;
                 if (copied) copiedFiles++;
 
+                if (onProgress) {
+                    onProgress({
+                        status: copied ? 'copied' : 'skipped',
+                        mapping: mapping.title,
+                        current: processedFiles,
+                        total: totalFiles,
+                        file: filename
+                    });
+                }
             } catch (error) {
-                log_cli('ERROR', `❌ Erreur lors de la copie du fichier: ${filename}`, {
-                    error: error.message,
-                    stack: error.stack
-                });
-                if (onProgress) onProgress({
-                    status: 'error',
-                    mapping: mapping.title,
-                    error: error.message
-                });
-                throw error;
+                log_cli('ERROR', `❌ Erreur lors de la copie du fichier ${filename}:`, error);
+                processedFiles++;
+                if (onProgress) {
+                    onProgress({
+                        status: 'error',
+                        mapping: mapping.title,
+                        current: processedFiles,
+                        total: totalFiles,
+                        file: filename,
+                        error: error.message
+                    });
+                }
             }
         }
 
         // Informer de la fin du traitement
-        if (onProgress) {
-            onProgress({
-                status: 'completed',
-                mapping: mapping.title,
-                current: processedFiles,
-                total: totalFiles
-            });
-        }
-
-        log_cli('INFO', '✅ Traitement du mapping terminé', {
-            mapping: mapping.title,
-            processed: processedFiles,
-            copied: copiedFiles,
-            total: totalFiles
-        });
-
         if (onComplete) {
             onComplete({
-                mapping: mapping.title,
+                total: totalFiles,
                 processed: processedFiles,
                 copied: copiedFiles,
-                total: totalFiles
+                cancelled: false
             });
         }
 
     } catch (error) {
-        log_cli('ERROR', `❌ Erreur lors du traitement du mapping`, {
-            mapping: mapping.title,
-            error: error.message,
-            stack: error.stack
-        });
+        log_cli('ERROR', `❌ Erreur lors du traitement du mapping:`, error);
+        if (onComplete) {
+            onComplete({
+                error: error.message,
+                cancelled: isCancelled
+            });
+        }
         throw error;
     }
 }
