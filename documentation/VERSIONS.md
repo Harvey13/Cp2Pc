@@ -1,5 +1,16 @@
 # Historique des versions
 
+## v0.22 (2024-12-18)
+- Ajout d'une vérification pour ignorer les sous-dossiers dans le dossier source.
+- Émission d'un avertissement si rien à copier dans le dossier source.
+- Émission d'un avertissement si aucun fichier récent n'est trouvé.
+
+## v0.21 (2024-12-17)
+- Mise à jour de la logique de copie de fichiers pour gérer les limites maximales de fichiers.
+- Amélioration de la gestion des erreurs et des journaux.
+- Correction des chemins d'importation des modules de configuration.
+- Création des fichiers utilitaires nécessaires.
+
 ## v0.20 (2024-12-17)
 - Mise à jour de la logique de copie de fichiers pour gérer les limites maximales de fichiers.
 - Amélioration de la gestion des erreurs et des journaux.

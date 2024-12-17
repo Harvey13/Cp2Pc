@@ -1,6 +1,7 @@
 const fs = require('fs').promises;
 							 
 const path = require('path');
+const { app } = require('electron'); // Import the electron app module
 const { log_cli } = require('./utils/logger');
 
 // Variables globales
@@ -534,8 +535,7 @@ async function processMapping({ mapping, onProgress, onComplete }) {
 								 
         }
 
-								   
-        const configPath = 'C:\\Users\\herve\\AppData\\Roaming\\cp2pc-server\\config.json';
+        const configPath = path.join(app.getPath('userData'), 'config.json');
         const config = require(configPath);
         const maxFiles = config.maxFiles || 100;
 
@@ -602,13 +602,11 @@ async function processMapping({ mapping, onProgress, onComplete }) {
 									 
         const allFiles = await listFilesRecursively(mapping.sourcePath);
 
-													  
-						  
-																						
-																											 
-				   
-		 
-
+        if (allFiles.length === 0) {
+            log_cli('WARNING', 'Rien à copier dans le dossier source.');
+            return;
+        }
+        
         const recentFiles = [];
         
 
@@ -637,19 +635,10 @@ async function processMapping({ mapping, onProgress, onComplete }) {
             }
         }
 
-													  
-						  
-																						
-																														  
-				   
-		 
-
-												   
-								   
-									   
-								   
-														
-		   
+        if (recentFiles.length === 0) {
+            log_cli('WARNING', 'Aucun fichier récent trouvé dans le dossier source.');
+            return;
+        }
 
         const totalFiles = recentFiles.length;
         let processedFiles = 0;
