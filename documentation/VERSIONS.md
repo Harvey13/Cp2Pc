@@ -1,5 +1,11 @@
 # Historique des versions
 
+## v0.20 (2024-12-17)
+- Mise à jour de la logique de copie de fichiers pour gérer les limites maximales de fichiers.
+- Amélioration de la gestion des erreurs et des journaux.
+- Correction des chemins d'importation des modules de configuration.
+- Création des fichiers utilitaires nécessaires.
+
 ## v0.19 (2024-12-16)
 - 🐛 Correction du bug de copie dans les dossiers pleins
   - Vérification du nombre de fichiers dans le dossier de base avant utilisation
