@@ -1,5 +1,6 @@
 const { ipcRenderer } = require('electron');
 const { io } = require('socket.io-client');
+const fs = require('fs');
 
 // Création de la connexion Socket.IO
 const socket = io('http://localhost:3000', {
@@ -45,10 +46,31 @@ function loadConfig() {
 }
 
 // Sauvegarder la configuration
-function saveConfig() {
-    config.maxFiles = parseInt(maxFilesInput.value, 10);
-    localStorage.setItem('config', JSON.stringify(config));
-    settingsModal.classList.remove('show');
+function saveConfig(newConfig) {
+    try {
+        // Charger la configuration existante pour préserver les mappings
+        const currentConfig = loadConfig();
+        
+        // Fusionner la nouvelle config avec l'existante, en préservant les mappings
+        const updatedConfig = {
+            ...currentConfig,
+            ...newConfig,
+            mappings: currentConfig.mappings || [] // Préserver les mappings existants
+        };
+        
+        // Sauvegarder la configuration complète
+        fs.writeFileSync(
+            CONFIG_PATH,
+            JSON.stringify(updatedConfig, null, 2),
+            'utf8'
+        );
+        
+        console.log('[CONFIG] Configuration sauvegardée:', updatedConfig);
+        return updatedConfig;
+    } catch (error) {
+        console.error('[CONFIG] Erreur lors de la sauvegarde:', error);
+        throw error;
+    }
 }
 
 // Gestionnaires d'événements
@@ -273,8 +295,12 @@ function saveMappings() {
 
 function loadMappings() {
     const savedMappings = localStorage.getItem('mappings');
+    console.log('Saved mappings from localStorage:', savedMappings); // Log des mappings sauvegardés
     if (savedMappings) {
         mappings = JSON.parse(savedMappings);
+        console.log('Parsed mappings:', mappings); // Log des mappings analysés
+        console.log('Mappings length:', mappings.length); // Log de la longueur des mappings
+        console.log('Mappings content:', mappings); // Log du contenu des mappings
         mappings.forEach(mapping => {
             const mappingNode = document.importNode(mappingTemplate.content, true);
             const mappingItem = mappingNode.querySelector('.mapping-item');
@@ -295,6 +321,8 @@ function loadMappings() {
             setupMappingEventListeners(mappingItem);
             mappingsContainer.appendChild(mappingItem);
         });
+    } else {
+        console.log('No mappings found in localStorage.'); // Log si aucun mapping n'est trouvé
     }
 }
 

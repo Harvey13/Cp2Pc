@@ -1,3 +1,6 @@
 {
-  "development": true
+  "maxFiles": 100,
+  "localMode": false,
+  "language": "fr",
+  "mappings": []
 }

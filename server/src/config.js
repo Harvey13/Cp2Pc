@@ -2,70 +2,134 @@ const path = require('path');
 const fs = require('fs');
 const { app } = require('electron');
 
-class Config {
+class ConfigManager {
     constructor() {
-        this.configPath = path.join(app.getPath('userData'), 'config.json');
-        this.defaultConfig = {
-            maxFilesPerFolder: 1000,
-            destinations: [],
-            port: 3000
-        };
-        this.loadConfig();
+        const userDataPath = app.getPath('userData');
+        this.configPath = path.join(userDataPath, 'config.json');
+        console.log('[CONFIG] Dossier des données:', userDataPath);
+        console.log('[CONFIG] Chemin du fichier de configuration:', this.configPath);
+        
+        this.config = null;
+        this.initialize();
     }
 
-    loadConfig() {
+    initialize() {
         try {
             if (fs.existsSync(this.configPath)) {
-                const data = fs.readFileSync(this.configPath);
-                this.config = JSON.parse(data);
+                const rawData = fs.readFileSync(this.configPath, { encoding: 'utf8' });
+                console.log('[CONFIG] Contenu du fichier:', rawData);
+                
+                try {
+                    this.config = JSON.parse(rawData);
+                    console.log('[CONFIG] Configuration chargée:', this.config);
+                } catch (parseError) {
+                    console.error('[CONFIG] Erreur de parsing JSON:', parseError);
+                    this.config = this.getDefaultConfig();
+                }
             } else {
-                this.config = this.defaultConfig;
-                this.saveConfig();
+                console.log('[CONFIG] Fichier de configuration non trouvé, création avec valeurs par défaut');
+                this.config = this.getDefaultConfig();
+                this.persistConfig(this.config);
             }
+
+            if (!this.isValidConfig(this.config)) {
+                console.warn('[CONFIG] Configuration invalide, utilisation des valeurs par défaut');
+                this.config = this.getDefaultConfig();
+                this.persistConfig(this.config);
+            }
+
+            if (!Array.isArray(this.config.mappings)) {
+                this.config.mappings = [];
+                this.persistConfig(this.config);
+            }
+
+            console.log('[CONFIG] Configuration initialisée:', this.config);
+            return this.config;
         } catch (error) {
-            console.error('Error loading config:', error);
-            this.config = this.defaultConfig;
+            console.error('[CONFIG] Erreur lors de l\'initialisation:', error);
+            this.config = this.getDefaultConfig();
+            return this.config;
         }
     }
 
-    saveConfig() {
+    isValidConfig(config) {
+        return config 
+            && typeof config === 'object'
+            && typeof config.maxFiles === 'number'
+            && typeof config.localMode === 'boolean'
+            && typeof config.language === 'string';
+    }
+
+    getConfig() {
+        if (!this.config) {
+            this.initialize();
+        }
+        return this.config;
+    }
+
+    getMappings() {
+        const config = this.getConfig();
+        return config.mappings || [];
+    }
+
+    cleanPath(path) {
+        if (!path) return path;
+        return path.normalize()
+            .replace(/\\+/g, '\\')
+            .replace(/[^\x00-\x7F]/g, char => encodeURIComponent(char));
+    }
+
+    persistConfig(config) {
         try {
-            fs.writeFileSync(this.configPath, JSON.stringify(this.config, null, 2));
+            const jsonContent = JSON.stringify(config, null, 2);
+            fs.writeFileSync(this.configPath, jsonContent, { encoding: 'utf8', flag: 'w' });
+            this.config = config;
+            return true;
         } catch (error) {
-            console.error('Error saving config:', error);
+            console.error('[CONFIG] Erreur de persistance:', error);
+            return false;
         }
     }
 
-    get maxFilesPerFolder() {
-        return this.config.maxFilesPerFolder;
-    }
-
-    set maxFilesPerFolder(value) {
-        this.config.maxFilesPerFolder = value;
-        this.saveConfig();
-    }
-
-    get destinations() {
-        return this.config.destinations;
-    }
-
-    addDestination(path) {
-        if (!this.config.destinations.includes(path)) {
-            this.config.destinations.push(path);
-            this.saveConfig();
+    updateConfig(partialConfig) {
+        try {
+            const updatedConfig = {
+                ...this.config,
+                ...partialConfig,
+                mappings: this.config?.mappings || []
+            };
+            
+            if (this.persistConfig(updatedConfig)) {
+                console.log('[CONFIG] Configuration mise à jour:', updatedConfig);
+                return updatedConfig;
+            }
+            throw new Error('Échec de la persistance');
+        } catch (error) {
+            console.error('[CONFIG] Erreur de mise à jour:', error);
+            throw error;
         }
     }
 
-    removeDestination(path) {
-        const index = this.config.destinations.indexOf(path);
-        if (index > -1) {
-            this.config.destinations.splice(index, 1);
-            this.saveConfig();
-        }
+    getDefaultConfig() {
+        return {
+            maxFiles: 100,
+            localMode: false,
+            language: 'fr',
+            mappings: []
+        };
     }
 }
 
+let configManager = null;
+
+function createConfigManager() {
+    if (!configManager) {
+        configManager = new ConfigManager();
+    }
+    return configManager;
+}
+
 module.exports = {
-    MAX_FILES_PER_FOLDER: 100, // Nombre maximum de fichiers par dossier
-    config: new Config()
+    createConfigManager,
+    getConfigManager: () => configManager
 };

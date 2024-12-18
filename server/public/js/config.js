@@ -1,74 +1,127 @@
 class ConfigUI {
     constructor() {
-        this.initForm();
-        this.initButtons();
-        this.loadConfig();
+        this.initializeUI();
+        this.initializeButtons();
     }
 
-    async loadConfig() {
-        try {
-            if (window.api) {
-                const config = await window.api.getConfig();
-                if (config) {
-                    document.getElementById('maxFiles').value = config.maxFiles || 1000;
-                    document.getElementById('localMode').checked = config.localMode || false;
-                    this.updateLanguage(config.language || 'fr');
-                }
-            }
-        } catch (error) {
-            console.error('Erreur lors du chargement de la configuration:', error);
+    async initializeUI() {
+        if (window.api) {
+            const config = await window.api.getConfig();
+            this.updateUIFromConfig(config);
         }
     }
 
-    initForm() {
-        // Initialiser les champs du formulaire avec des valeurs par défaut
-        document.getElementById('maxFiles').value = 1000;
-        document.getElementById('localMode').checked = false;
-        this.updateLanguage('fr');
-    }
-
-    initButtons() {
-        document.getElementById('saveBtn').addEventListener('click', () => this.saveConfig());
-        document.getElementById('cancelBtn').addEventListener('click', () => {
-            if (window.api) {
-                window.api.closeWindow();
-            }
-        });
-
-        // Gestion des boutons de langue
-        document.querySelectorAll('.language-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                document.querySelectorAll('.language-btn').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
+    initializeButtons() {
+        console.log('Initialisation des boutons de configuration');
+        
+        // Bouton Sauvegarder
+        const saveBtn = document.getElementById('saveBtn');
+        if (saveBtn) {
+            saveBtn.addEventListener('click', async () => {
+                try {
+                    await this.saveConfig();
+                } catch (error) {
+                    console.error('Erreur lors de la sauvegarde de la configuration:', error);
+                    alert('Erreur lors de la sauvegarde: ' + error.message);
+                }
             });
-        });
+        } else {
+            console.warn('Bouton de sauvegarde non trouvé');
+        }
+
+        // Bouton Annuler
+        const cancelBtn = document.getElementById('cancelBtn');
+        if (cancelBtn) {
+            cancelBtn.addEventListener('click', async () => {
+                try {
+                    console.log('Annulation des modifications');
+                    await this.cancelConfig();
+                } catch (error) {
+                    console.error('Erreur lors de l\'annulation:', error);
+                }
+            });
+        } else {
+            console.warn('Bouton d\'annulation non trouvé');
+        }
+
+        console.log('Boutons de configuration initialisés');
     }
 
-    updateLanguage(lang) {
-        document.querySelectorAll('.language-btn').forEach(btn => {
-            btn.classList.toggle('active', btn.dataset.lang === lang);
+    updateUIFromConfig(config) {
+        // Mettre à jour les éléments de l'interface
+        const maxFilesInput = document.getElementById('maxFiles');
+        const localModeCheckbox = document.getElementById('localMode');
+        const languageButtons = document.querySelectorAll('.language-btn');
+
+        if (maxFilesInput) {
+            maxFilesInput.value = config.maxFiles || 100;
+        }
+
+        if (localModeCheckbox) {
+            localModeCheckbox.checked = config.localMode || false;
+        }
+
+        // Mettre à jour le bouton de langue actif
+        languageButtons.forEach(btn => {
+            if (btn.dataset.lang === config.language) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
         });
     }
 
     async saveConfig() {
         try {
-            const config = {
-                maxFiles: parseInt(document.getElementById('maxFiles').value) || 1000,
-                localMode: document.getElementById('localMode').checked,
-                language: document.querySelector('.language-btn.active')?.dataset.lang || 'fr'
+            console.log('Sauvegarde de la configuration');
+            
+            const maxFiles = parseInt(document.getElementById('maxFiles').value) || 100;
+            const localMode = document.getElementById('localMode').checked;
+            const activeLanguageBtn = document.querySelector('.language-btn.active');
+            const language = activeLanguageBtn ? activeLanguageBtn.dataset.lang : 'fr';
+
+            const newConfig = {
+                maxFiles,
+                localMode,
+                language
             };
 
+            console.log('Nouvelle configuration:', newConfig);
+
             if (window.api) {
-                await window.api.saveConfig(config);
-                window.api.closeWindow();
+                await window.api.saveConfig(newConfig);
+                console.log('Configuration sauvegardée avec succès');
+                
+                // Fermer la fenêtre de configuration
+                await window.api.closeConfig();
             }
         } catch (error) {
             console.error('Erreur lors de la sauvegarde de la configuration:', error);
+            throw error;
+        }
+    }
+
+    async cancelConfig() {
+        try {
+            console.log('Annulation des modifications de configuration');
+            
+            // Recharger la configuration initiale
+            if (window.api) {
+                const config = await window.api.getConfig();
+                this.updateUIFromConfig(config);
+                
+                // Fermer la fenêtre de configuration
+                await window.api.closeConfig();
+            }
+        } catch (error) {
+            console.error('Erreur lors de l\'annulation:', error);
+            throw error;
         }
     }
 }
 
 // Initialiser l'interface de configuration
 document.addEventListener('DOMContentLoaded', () => {
-    new ConfigUI();
-});
+    console.log('Initialisation de l\'interface de configuration');
+    window.configUI = new ConfigUI();
+}); 

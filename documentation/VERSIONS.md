@@ -1,6 +1,28 @@
 # Historique des versions
 
-## v0.22 (2024-12-18)
+## v0.23 (2024-03-18)
+### Corrections
+- Correction des boutons de sauvegarde et d'annulation dans la fenêtre de configuration
+- Correction des événements de sélection de dossiers PC et mobile
+- Correction des événements de copie et de progression
+- Amélioration de la gestion des connexions mobiles
+- Correction de la gestion des mappings
+
+### Améliorations
+- Meilleure gestion du cycle de vie de l'application
+- Remplacement de l'événement `unload` déprécié par `beforeunload`
+- Amélioration des logs pour le débogage
+- Centralisation de la gestion des états de connexion
+- Nettoyage propre des ressources à la fermeture
+
+### Technique
+- Refactoring du gestionnaire de connexion
+- Amélioration de la gestion des événements IPC
+- Ajout de gestionnaires d'événements manquants
+- Meilleure gestion des erreurs
+- Documentation du code améliorée
+
+## v0.22 (2024-03-15)
 - Ajout d'une vérification pour ignorer les sous-dossiers dans le dossier source.
 - Émission d'un avertissement si rien à copier dans le dossier source.
 - Émission d'un avertissement si aucun fichier récent n'est trouvé.

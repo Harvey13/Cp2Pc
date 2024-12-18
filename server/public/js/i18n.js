@@ -72,16 +72,9 @@ class I18nManager {
 
     async setLanguage(lang) {
         try {
-            if (!this.translations[lang]) {
-                console.error(`Language ${lang} not supported`);
-                return;
-            }
-
-            if (window.api) {
-                await window.api.saveConfig({ language: lang });
-                this.currentLanguage = lang;
-                this.translatePage();
-            }
+            await window.api.updateConfig({ language: lang });
+            this.currentLanguage = lang;
+            this.translatePage();
         } catch (error) {
             console.error('Erreur lors du changement de langue:', error);
         }

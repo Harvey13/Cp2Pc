@@ -107,7 +107,7 @@ class MappingList extends HTMLElement {
             startCopyBtn.addEventListener('click', async () => {
                 if (!this.copyInProgress) {
                     this.isGlobalCopy = true;
-                    this.disableAllCopyButtons();
+					IHM.disableAllCopyButtons();
                     try {
                         await window.api.startCopy();
                     } catch (error) {
@@ -130,7 +130,7 @@ class MappingList extends HTMLElement {
                     if (mapping) {
                         console.log('🚀 Démarrage de la copie pour le mapping:', mapping.title);
                         this.isGlobalCopy = false;
-                        this.disableAllCopyButtons();
+                        IHM.disableAllCopyButtons();
                         try {
                             console.log('⏳ Appel de window.api.startCopy');
                             await window.api.startCopy([mapping]);
@@ -234,43 +234,11 @@ class MappingList extends HTMLElement {
         }
     }
 
-    disableAllCopyButtons() {
-        // Désactiver le bouton de copie globale
-        const globalCopyBtn = this.querySelector('.start-copy-btn');
-        if (globalCopyBtn) {
-            globalCopyBtn.disabled = true;
-            globalCopyBtn.classList.add('disabled');
-        }
-
-        // Désactiver tous les boutons de lancement
-        const startMappingBtns = this.querySelectorAll('.start-mapping-btn');
-        startMappingBtns.forEach(btn => {
-            btn.disabled = true;
-            btn.classList.add('disabled');
-        });
-    }
-
-    enableAllCopyButtons() {
-        // Réactiver le bouton de copie globale
-        const globalCopyBtn = this.querySelector('.start-copy-btn');
-        if (globalCopyBtn) {
-            globalCopyBtn.disabled = false;
-            globalCopyBtn.classList.remove('disabled');
-        }
-
-        // Réactiver tous les boutons de lancement
-        const startMappingBtns = this.querySelectorAll('.start-mapping-btn');
-        startMappingBtns.forEach(btn => {
-            btn.disabled = false;
-            btn.classList.remove('disabled');
-        });
-    }
-
     showGlobalProgress() {
         console.log('📊 Showing progress bar');
         this.hideProgress();
         this.copyInProgress = true;
-        this.disableAllCopyButtons();
+        IHM.disableAllCopyButtons();
 
         // Créer la nouvelle barre de progression
         this.currentProgress = document.createElement('div');
@@ -321,7 +289,7 @@ class MappingList extends HTMLElement {
         this.currentProgress = null;
         this.copyInProgress = false;
         this.isGlobalCopy = false;
-        this.enableAllCopyButtons();
+		IHM.enableAllCopyButtons();
         console.log('✅ Progress bar hidden and buttons enabled');
     }
 

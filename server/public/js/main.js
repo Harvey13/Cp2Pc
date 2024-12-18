@@ -1,25 +1,151 @@
 // État global
 let deviceInfo = null;
 
-// Fonction de mise à jour du statut de connexion
-function updateConnectionStatus(status) {
-    const statusLed = document.getElementById('connectionStatus');
-    const statusText = document.getElementById('statusText');
-    const deviceNameElement = document.getElementById('deviceName');
+// Gestionnaire de connexion côté client
+class ClientConnectionManager {
+    constructor() {
+        this.isInitialized = false;
+        this.socket = null;
+        this.status = {
+            isConnected: false,
+            deviceInfo: null
+        };
+        this.eventCleanupFunctions = [];
+    }
 
-    // Réinitialiser toutes les classes d'état
-    statusLed.classList.remove('connected', 'disconnected', 'waiting');
-
-    if (status.connected) {
-        statusLed.classList.add('connected');
-        statusText.textContent = 'Mobile connecté';
-        if (status.deviceInfo) {
-            deviceNameElement.textContent = status.deviceInfo.deviceName || 'Appareil inconnu';
+    static getInstance() {
+        if (!window.connectionManager) {
+            window.connectionManager = new ClientConnectionManager();
         }
-    } else {
-        statusLed.classList.add('disconnected');
-        statusText.textContent = 'Non connecté';
-        deviceNameElement.textContent = 'En attente d\'un mobile';
+        return window.connectionManager;
+    }
+
+    async initialize() {
+        try {
+            if (this.isInitialized) return;
+
+            console.log('🔌 Initialisation du gestionnaire de connexion');
+            
+            // Initialiser le socket
+            this.initializeSocket();
+
+            if (window.api) {
+                // Récupérer le statut initial
+                const status = await window.api.getConnectionStatus();
+                this.updateStatus(status);
+
+                // Configurer les écouteurs d'événements
+                this.setupEventListeners();
+            }
+
+            this.isInitialized = true;
+            console.log('✅ Gestionnaire de connexion initialisé');
+        } catch (error) {
+            console.error('❌ Erreur lors de l\'initialisation du gestionnaire de connexion:', error);
+            throw error;
+        }
+    }
+
+    setupEventListeners() {
+        // Nettoyer les anciens listeners
+        this.cleanupEventListeners();
+
+        // Ajouter les nouveaux listeners
+        this.eventCleanupFunctions = [
+            window.api.onConnectionStatus((status) => {
+                console.log('🔌 Statut de connexion mis à jour:', status);
+                this.updateStatus(status);
+            }),
+
+            window.api.onMobileConnected((data) => {
+                console.log('📱 Mobile connecté:', data);
+                this.updateStatus({ connected: true, deviceInfo: data });
+            }),
+
+            window.api.onMobileDisconnected(() => {
+                console.log('📱 Mobile déconnecté');
+                this.updateStatus({ connected: false, deviceInfo: null });
+            }),
+
+            window.api.onMobileStatus((status) => {
+                console.log('📱 Statut mobile mis à jour:', status);
+                this.updateStatus(status);
+            })
+        ];
+    }
+
+    cleanupEventListeners() {
+        this.eventCleanupFunctions.forEach(cleanup => {
+            if (typeof cleanup === 'function') {
+                cleanup();
+            }
+        });
+        this.eventCleanupFunctions = [];
+    }
+
+    initializeSocket() {
+        const serverUrl = 'http://localhost:3000';
+        this.socket = io(serverUrl);
+
+        this.socket.on('connect', () => {
+            console.log('🔌 Socket connectée');
+            this.updateStatus({ connected: true });
+        });
+
+        this.socket.on('disconnect', () => {
+            console.log('🔌 Socket déconnectée');
+            this.updateStatus({ connected: false });
+        });
+
+        return this.socket;
+    }
+
+    updateStatus(status) {
+        console.log('🔄 Mise à jour du statut:', status);
+        
+        this.status = {
+            ...this.status,
+            ...status
+        };
+        
+        this.updateUI();
+        
+        // Émettre un événement personnalisé pour la mise à jour du statut
+        window.dispatchEvent(new CustomEvent('connection-status-changed', { 
+            detail: this.status 
+        }));
+        
+        // Mettre à jour l'état global si nécessaire
+        if (window.AppStateManager) {
+            window.AppStateManager.checkInitialState();
+        }
+    }
+
+    updateUI() {
+        const statusLed = document.getElementById('connectionStatus');
+        if (statusLed) {
+            statusLed.classList.toggle('connected', this.status.connected);
+            statusLed.title = this.status.connected ? 
+                `Connecté ${this.status.deviceInfo ? `- ${this.status.deviceInfo}` : ''}` : 
+                'Déconnecté';
+        }
+    }
+
+    getStatus() {
+        return this.status;
+    }
+
+    getSocket() {
+        return this.socket;
+    }
+
+    destroy() {
+        this.cleanupEventListeners();
+        if (this.socket) {
+            this.socket.disconnect();
+            this.socket = null;
+        }
+        this.isInitialized = false;
     }
 }
 
@@ -37,8 +163,12 @@ function updateViewsVisibility(mappings) {
     }
 }
 
+// Initialisation au chargement de la page
 document.addEventListener('DOMContentLoaded', async () => {
     try {
+        const connectionManager = ClientConnectionManager.getInstance();
+        await connectionManager.initialize();
+        
         // Initialiser les composants s'ils ne sont pas déjà définis
         if (!customElements.get('mapping-editor')) {
             customElements.define('mapping-editor', MappingEditor);
@@ -89,38 +219,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             console.log('Mapping mis à jour:', data);
             // TODO: Mettre à jour l'interface avec le nouveau chemin de destination
         });
-
-        // Vérifier l'état initial de la connexion
-        if (window.api) {
-            try {
-                const status = await window.api.checkConnectionStatus();
-                updateConnectionStatus(status);
-                
-                // Charger les mappings initiaux et mettre à jour la visibilité
-                const mappings = await window.api.getMappings();
-                updateViewsVisibility(mappings);
-            } catch (error) {
-                console.error('Erreur lors de la vérification du statut:', error);
-            }
-        }
-
-        // Écouter les événements de connexion
-        if (window.api) {
-            window.api.onMobileConnected((data) => {
-                console.log('Mobile connecté:', data);
-                updateConnectionStatus({ connected: true, deviceInfo: data });
-            });
-
-            window.api.onMobileDisconnected(() => {
-                console.log('Mobile déconnecté');
-                updateConnectionStatus({ connected: false });
-            });
-
-            window.api.onMobileStatus((status) => {
-                console.log('Statut mobile mis à jour:', status);
-                updateConnectionStatus(status);
-            });
-        }
 
         // Gérer l'ajout du premier mapping
         noMappingView.addEventListener('add-first-mapping', () => {
@@ -195,7 +293,45 @@ document.addEventListener('DOMContentLoaded', async () => {
         updateViewsVisibility(initialMappings);
         mappingList.loadMappings();
 
+        // Autres initialisations...
+        if (window.AppStateManager) {
+            await window.AppStateManager.initialize();
+        }
     } catch (error) {
         console.error('Erreur lors de l\'initialisation:', error);
     }
 });
+
+// Utiliser beforeunload au lieu de unload
+window.addEventListener('beforeunload', (event) => {
+    console.log('🔄 Nettoyage avant fermeture...');
+    
+    try {
+        if (window.connectionManager) {
+            window.connectionManager.destroy();
+        }
+        
+        // Permettre la fermeture normale de la fenêtre
+        delete event['returnValue'];
+    } catch (error) {
+        console.error('❌ Erreur lors du nettoyage:', error);
+    }
+});
+
+// Gestionnaire pour la fermeture propre de l'application
+if (window.api) {
+    window.api.onAppClosing(async () => {
+        console.log('🔄 Fermeture de l\'application...');
+        
+        try {
+            if (window.connectionManager) {
+                await window.connectionManager.destroy();
+            }
+        } catch (error) {
+            console.error('❌ Erreur lors de la fermeture:', error);
+        }
+    });
+}
+
+// Exporter le gestionnaire pour une utilisation globale
+window.ClientConnectionManager = ClientConnectionManager;

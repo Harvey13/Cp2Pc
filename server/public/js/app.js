@@ -90,10 +90,18 @@ class ConnectionManager {
             }
         });
 
-        this.socket.on('config-updated', (config) => {
-            Logger.log('⚙️ Configuration mise à jour:', config);
-            if (config.language && window.i18nManager) {
-                window.i18nManager.setLanguage(config.language);
+        this.socket.on('config-updated', (updatedConfig) => {
+            Logger.log('⚙️ Configuration mise à jour:', updatedConfig);
+            
+            // Mettre à jour la configuration locale
+            window.currentConfig = updatedConfig;
+            
+            // Vérifier l'état avec la nouvelle configuration
+            AppStateManager.checkInitialState();
+            
+            // Mettre à jour la langue si nécessaire
+            if (updatedConfig.language && window.i18nManager) {
+                window.i18nManager.setLanguage(updatedConfig.language);
             }
         });
 
@@ -113,6 +121,9 @@ class ConnectionManager {
             const key = `status.${status}`;
             this.statusElement.textContent = window.i18nManager.translate(key);
         }
+
+        // Vérifier l'état des boutons après chaque changement de statut
+        AppStateManager.checkInitialState();        
     }
 
     // Méthode pour récupérer la socket
@@ -324,7 +335,7 @@ class MappingManager {
             if (response && response.error) {
                 Logger.log('❌ Erreur lors de l\'émission:', response.error);
             } else if (response && response.success) {
-                Logger.log('✅ Événement start-copy confirmé par le serveur');
+                Logger.log('✅ ��vénement start-copy confirmé par le serveur');
             } else {
                 Logger.log('⚠️ Réponse inattendue du serveur:', response);
             }
@@ -386,42 +397,62 @@ class MappingManager {
     }
 }
 
-// Initialisation de l'application
-document.addEventListener('DOMContentLoaded', async () => {
-    try {
-        Logger.log('🚀 Application initialisée');
+
+// Ajouter cette fonction après les classes existantes
+class AppStateManager {
+    static async initialize() {
+        try {
+            Logger.log('🚀 Application initialisée');
+            
+            // Charger la configuration
+            const config = await window.api.getConfig();
+            window.currentConfig = config;
+            Logger.log('⚙️ Configuration chargée:', config);
+            
+            // Vérifier l'état initial avec la configuration
+            this.checkInitialState();
+        } catch (error) {
+            Logger.log('❌ Erreur lors de l\'initialisation:', error);
+        }
+    }
+
+    static checkInitialState() {
+        Logger.log('🔍 Vérification de l\'état initial');
         
-        // Vérification de l'API Electron
-        if (CONFIG.IS_ELECTRON) {
-            Logger.log('✅ API Electron disponible');
+        // Utiliser le gestionnaire de connexion
+        const connectionManager = window.ClientConnectionManager.getInstance();
+        const connectionStatus = connectionManager.getStatus();
+        
+        // Utiliser la configuration globale pour le mode local
+        const isLocalMode = window.currentConfig?.localMode || false;
+        
+        Logger.log('📊 État initial:', { 
+            connectionStatus, 
+            isLocalMode,
+            currentConfig: window.currentConfig 
+        });
+        
+        // Activer les boutons si on est en mode local OU connecté
+        if (isLocalMode || connectionStatus.connected) {
+            Logger.log('🔓 Activation des boutons (mode local ou connecté)');
+            window.IHM.enableAllCopyButtons();
         } else {
-            Logger.log('ℹ️ Mode navigateur (API Electron non disponible)');
+            Logger.log('🔒 Désactivation des boutons (non connecté et mode non local)');
+            window.IHM.disableAllCopyButtons();
         }
-        
-        // Initialiser les gestionnaires
-        window.connectionManager = new ConnectionManager();
-        window.configManager = new ConfigManager();
-        window.mappingManager = new MappingManager();
+    }
+}
 
-        // Initialiser la langue si disponible via Electron
-        if (window.electron) {
-            const currentLang = await window.electron.getCurrentLanguage();
-            if (currentLang) {
-                window.i18nManager.setLanguage(currentLang);
-            }
-        }
+// Initialisation de l'application
+document.addEventListener('DOMContentLoaded', () => {
+    AppStateManager.initialize();
 
-        // Écouter les changements de langue
-        if (window.electron) {
-            window.electron.onLanguageChange((lang) => {
-                window.i18nManager.setLanguage(lang);
-                // Mettre à jour le statut pour rafraîchir la traduction
-                const currentStatus = window.connectionManager.statusLed.className.split(' ')[1];
-                window.connectionManager.updateStatus(currentStatus);
-            });
-        }
-
-    } catch (error) {
-        console.error('Erreur lors de l\'initialisation:', error);
+    // Écouter les changements de configuration
+    if (window.api) {
+        window.api.onConfigUpdate((newConfig) => {
+            window.currentConfig = newConfig;
+            AppStateManager.checkInitialState();
+            Logger.log('⚙️ Configuration mise à jour:', newConfig);
+        });
     }
 });

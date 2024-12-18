@@ -8,6 +8,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 const logger = require(path.join(__dirname, 'utils', 'logger'));
 const { LogTypes } = logger;
+const { createConfigManager, getConfigManager } = require('./src/config');
 
 // Détecter le mode développement
 const isDev = process.env.NODE_ENV === 'development' || process.env.DEBUG_PROD === 'true';
@@ -23,8 +24,10 @@ let lastPingTime = null;
 let copyInProgress = false;
 let cancelCopyRequested = false;
 let currentConfig = null;
+let configManager = null;
+let connectionManager = null;
 
-const PING_TIMEOUT = 10000; // 10 secondes
+const PING_TIMEOUT = 3000; // 3 secondes
 
 // Configuration minimale par défaut (utilisée uniquement à la première installation)
 const MINIMAL_CONFIG = {
@@ -36,6 +39,33 @@ const MINIMAL_CONFIG = {
         activeTypes: ['CONFIG', 'INFO', 'ERROR']
     }
 };
+
+// Gestionnaire de connexion
+class ConnectionManager {
+    constructor() {
+        this.isConnected = false;
+        this.deviceInfo = null;
+    }
+
+    setStatus(connected, info = null) {
+        this.isConnected = connected;
+        this.deviceInfo = info;
+        this.notifyStatusChange();
+    }
+
+    getStatus() {
+        return {
+            connected: this.isConnected,
+            deviceInfo: this.deviceInfo
+        };
+    }
+
+    notifyStatusChange() {
+        BrowserWindow.getAllWindows().forEach(window => {
+            window.webContents.send('connection-status', this.getStatus());
+        });
+    }
+}
 
 // Initialiser Express et Socket.IO
 function createServer() {
@@ -183,37 +213,26 @@ function createMainWindow() {
 }
 
 function createConfigWindow() {
-    if (configWindow) {
-        configWindow.focus();
-        return;
-    }
-
     configWindow = new BrowserWindow({
-        width: 600,
-        height: 400,
-        parent: mainWindow,
-        modal: true,
+        width: 800,
+        height: 600,
         webPreferences: {
-            nodeIntegration: false,
+            nodeIntegration: true,
             contextIsolation: true,
-            preload: path.join(__dirname, 'preload.js'),
-            devTools: true
+            preload: path.join(__dirname, 'preload.js')
         }
     });
 
-    // En mode dev, ouvrir les devtools automatiquement
-    if (isDev) {
+    // Charger la page de configuration
+    configWindow.loadFile(path.join(__dirname, 'public', 'config.html'));
+
+    // Ouvrir les DevTools en mode développement
+    if (process.env.NODE_ENV === 'development') {
+        console.log('[CONFIG] Opening DevTools in config window');
         configWindow.webContents.openDevTools();
-        logger.console_log(LogTypes.CONFIG, 'Opening DevTools in config window');
     }
 
-    configWindow.removeMenu(); // Supprimer le menu
-    
-    const configPath = path.join(__dirname, 'public', 'config.html');
-    logger.console_log(LogTypes.CONFIG, 'Loading config window from:', configPath);
-    
-    configWindow.loadFile(configPath);
-
+    // Gérer la fermeture de la fenêtre
     configWindow.on('closed', () => {
         configWindow = null;
     });
@@ -244,58 +263,36 @@ function createMappingWindow() {
     });
 }
 
-// Gestion de la configuration
-async function loadConfig() {
-    try {
-        const configPath = path.join(app.getPath('userData'), 'config.json');
-        
-        // Vérifier si le fichier existe
-        try {
-            await fsPromises.access(configPath);
-        } catch {
-            // Le fichier n'existe pas, créer une configuration minimale
-            await fsPromises.writeFile(configPath, JSON.stringify(MINIMAL_CONFIG, null, 2));
-            logger.console_log(LogTypes.CONFIG, '[Config] Création de la configuration initiale');
-        }
-        
-        // Charger la configuration
-        const data = await fsPromises.readFile(configPath, 'utf8');
-        currentConfig = JSON.parse(data);
-        logger.console_log(LogTypes.CONFIG, '[Config] Configuration chargée:', currentConfig);
-        
-    } catch (error) {
-        logger.console_log(LogTypes.ERROR, '[Config] Erreur fatale lors du chargement de la configuration:', error);
-        throw error;
-    }
-    return currentConfig;
-}
+// Gestionnaire IPC pour la sauvegarde
+ipcMain.handle('save-config', async (event, newConfig) => {
+    return configManager.saveConfig(newConfig);
+});
 
-async function saveConfig(config) {
-    try {
-        const configPath = path.join(app.getPath('userData'), 'config.json');
-        await fsPromises.writeFile(configPath, JSON.stringify(config, null, 2));
-        currentConfig = config;
-        logger.console_log(LogTypes.CONFIG, '[Config] Configuration sauvegardée:', currentConfig);
-        return true;
-    } catch (error) {
-        logger.console_log(LogTypes.ERROR, '[Config] Erreur lors de la sauvegarde:', error);
-        return false;
-    }
+// Pour les mises à jour de configuration dans le code
+async function updateAppConfig(partialConfig) {
+    return configManager.updateConfig(partialConfig);
 }
 
 // Gestion des IPC
 function setupIPC() {
-    // Configuration
-    ipcMain.handle('get-config', async () => {
-        return currentConfig;
-    });
-
-    ipcMain.handle('save-config', async (event, config) => {
-        return await saveConfig(config);
-    });
-
-    ipcMain.on('open-config', () => {
-        logger.console_log(LogTypes.INFO, 'Opening config window');
+    const configManager = getConfigManager();
+    
+    // Initialiser le ConnectionManager s'il n'existe pas
+    if (!connectionManager) {
+        connectionManager = new ConnectionManager();
+    }
+    
+    // Supprimer les gestionnaires existants
+    ipcMain.removeHandler('get-mappings');
+    ipcMain.removeHandler('get-config');
+    ipcMain.removeHandler('save-config');
+    ipcMain.removeHandler('check-mobile-status');
+    ipcMain.removeHandler('get-mobile-status');
+    ipcMain.removeHandler('get-connection-status');
+    ipcMain.removeHandler('update-connection-status');
+    
+    // Ajouter le gestionnaire pour ouvrir la fenêtre de configuration
+    ipcMain.handle('open-config', () => {
         if (!configWindow) {
             createConfigWindow();
         } else {
@@ -303,275 +300,294 @@ function setupIPC() {
         }
     });
 
-    ipcMain.on('close-window', (event) => {
-        logger.console_log(LogTypes.INFO, 'Closing window');
-        const win = BrowserWindow.fromWebContents(event.sender);
-        if (win) {
-            win.close();
+    // Ajouter le gestionnaire pour fermer la fenêtre de configuration
+    ipcMain.handle('close-config', () => {
+        if (configWindow) {
+            configWindow.close();
         }
     });
 
-    // Vérification du statut mobile
-    ipcMain.handle('get-mobile-status', () => {
-        logger.console_log(LogTypes.INFO, 'Checking mobile status');
-        return {
-            connected: !!connectedDevice,
-            deviceInfo: connectedDevice
-        };
-    });
-
+    // Enregistrer les nouveaux gestionnaires
     ipcMain.handle('get-mappings', async () => {
-        return currentConfig.mappings || [];
-    });
-
-    ipcMain.handle('get-current-language', async () => {
-        return currentConfig.language || 'fr';
-    });
-
-    // Sélection de dossiers
-    ipcMain.handle('select-mobile-folder', async (event) => {
-        logger.console_log(LogTypes.INFO, 'Selecting mobile folder');
-        const result = await dialog.showOpenDialog({
-            properties: ['openDirectory']
-        });
-        if (!result.canceled && result.filePaths.length > 0) {
-            const selectedPath = result.filePaths[0];
-            event.sender.send('mobile-folder-selected', selectedPath);
-            return selectedPath;
-        }
-        return null;
-    });
-
-    ipcMain.handle('select-pc-folder', async (event) => {
-        logger.console_log(LogTypes.INFO, 'Selecting PC folder');
-        const result = await dialog.showOpenDialog({
-            properties: ['openDirectory']
-        });
-        if (!result.canceled && result.filePaths.length > 0) {
-            const selectedPath = result.filePaths[0];
-            event.sender.send('pc-folder-selected', selectedPath);
-            return selectedPath;
-        }
-        return null;
-    });
-
-    // Gestion des mappings
-    ipcMain.on('add-mapping', (event) => {
-        logger.console_log(LogTypes.MAPS, 'Adding new mapping');
-        if (mainWindow) {
-            mainWindow.webContents.send('mapping-added');
-        }
-    });
-
-    ipcMain.on('delete-mapping', (event, id) => {
-        logger.console_log(LogTypes.MAPS, 'Deleting mapping:', id);
-        if (mainWindow) {
-            mainWindow.webContents.send('mapping-delete', id);
-        }
-    });
-
-    ipcMain.on('mapping-update', (event, mapping) => {
-        logger.console_log(LogTypes.MAPS, 'Updating mapping:', mapping);
-        if (mainWindow) {
-            mainWindow.webContents.send('mapping-update', mapping);
-        }
-    });
-
-    ipcMain.handle('create-mapping', async (event, mapping) => {
-        logger.console_log(LogTypes.INFO, 'Creating new mapping:', mapping);
         try {
-            // Générer un ID unique pour le nouveau mapping
-            mapping.id = Date.now().toString();
-            currentConfig.mappings = currentConfig.mappings || [];
-            currentConfig.mappings.push(mapping);
-            await saveConfig(currentConfig);
-            return mapping;
+            const config = configManager.getConfig();
+            return config.mappings || [];
         } catch (error) {
-            logger.console_log(LogTypes.ERROR, 'Error creating mapping:', error);
+            console.error('[CONFIG] Erreur lors de la récupération des mappings:', error);
+            throw error;
+        }
+    });
+
+    ipcMain.handle('save-mappings', async (event, mappings) => {
+        try {
+            const config = configManager.getConfig();
+            config.mappings = mappings;
+            await configManager.updateConfig(config);
+            return mappings;
+        } catch (error) {
+            console.error('[CONFIG] Erreur lors de la sauvegarde des mappings:', error);
+            throw error;
+        }
+    });
+
+    ipcMain.handle('get-config', async () => {
+        try {
+            return configManager.getConfig();
+        } catch (error) {
+            console.error('[CONFIG] Erreur lors de la récupération de la config:', error);
+            throw error;
+        }
+    });
+
+    ipcMain.handle('save-config', async (event, newConfig) => {
+        try {
+            const updatedConfig = await configManager.updateConfig(newConfig);
+            // Notifier tous les renderers de la mise à jour
+            BrowserWindow.getAllWindows().forEach(window => {
+                window.webContents.send('config-updated', updatedConfig);
+            });
+            return updatedConfig;
+        } catch (error) {
+            console.error('[CONFIG] Erreur lors de la sauvegarde:', error);
+            throw error;
+        }
+    });
+
+    ipcMain.handle('check-mobile-status', async () => {
+        try {
+            const config = configManager.getConfig();
+            return {
+                connected: config.mobileStatus?.connected || false,
+                deviceInfo: config.mobileStatus?.deviceInfo || null
+            };
+        } catch (error) {
+            console.error('[CONFIG] Erreur lors de la vérification du statut:', error);
+            throw error;
+        }
+    });
+
+    // Ajout du gestionnaire get-mobile-status
+    ipcMain.handle('get-mobile-status', async () => {
+        try {
+            const config = configManager.getConfig();
+            return {
+                connected: config.mobileStatus?.connected || false,
+                deviceInfo: config.mobileStatus?.deviceInfo || null
+            };
+        } catch (error) {
+            console.error('[CONFIG] Erreur lors de la récupération du statut mobile:', error);
+            throw error;
+        }
+    });
+
+    // Gestionnaire pour obtenir le statut de connexion
+    ipcMain.handle('get-connection-status', () => {
+        return connectionManager.getStatus();
+    });
+
+    // Gestionnaire pour la mise à jour du statut
+    ipcMain.handle('update-connection-status', (event, status) => {
+        connectionManager.setStatus(status.connected, status.deviceInfo);
+        return connectionManager.getStatus();
+    });
+
+    // Gestionnaires de sélection de dossier
+    ipcMain.handle('select-mobile-folder', async (event, data) => {
+        try {
+            // Émettre l'événement vers le mobile via socket
+            if (mobileSocket && mobileSocket.connected) {
+                mobileSocket.emit('select-mobile-folder', data);
+                return { success: true };
+            }
+            throw new Error('Mobile non connecté');
+        } catch (error) {
+            console.error('[MOBILE] Erreur lors de la sélection du dossier:', error);
+            throw error;
+        }
+    });
+
+    ipcMain.handle('select-local-folder', async () => {
+        try {
+            const result = await dialog.showOpenDialog(mainWindow, {
+                properties: ['openDirectory'],
+                title: 'Sélectionner un dossier local'
+            });
+            
+            if (!result.canceled) {
+                return { path: result.filePaths[0] };
+            }
+            return { canceled: true };
+        } catch (error) {
+            console.error('[FOLDER] Erreur lors de la sélection du dossier:', error);
+            throw error;
+        }
+    });
+
+    // Gestionnaire de sélection de dossier PC
+    ipcMain.handle('select-pc-folder', async () => {
+        try {
+            const result = await dialog.showOpenDialog(mainWindow, {
+                properties: ['openDirectory'],
+                title: 'Sélectionner un dossier sur le PC'
+            });
+
+            if (!result.canceled) {
+                const selectedPath = result.filePaths[0];
+                
+                // Notifier tous les renderers
+                BrowserWindow.getAllWindows().forEach(window => {
+                    window.webContents.send('pc-folder-selected', {
+                        path: selectedPath
+                    });
+                });
+
+                return { path: selectedPath };
+            }
+            
+            return { canceled: true };
+        } catch (error) {
+            console.error('[FOLDER] Erreur lors de la sélection du dossier PC:', error);
+            
+            // Notifier l'erreur
+            BrowserWindow.getAllWindows().forEach(window => {
+                window.webContents.send('pc-folder-error', {
+                    error: error.message
+                });
+            });
+            
+            throw error;
+        }
+    });
+
+    // Gestionnaires de copie
+    ipcMain.handle('start-copy', async (event, mappingId) => {
+        try {
+            // Logique de copie à implémenter
+            return { success: true };
+        } catch (error) {
+            console.error('[COPY] Erreur lors du démarrage de la copie:', error);
+            throw error;
+        }
+    });
+
+    ipcMain.handle('cancel-copy', async (event, mappingId) => {
+        try {
+            // Logique d'annulation à implémenter
+            return { success: true };
+        } catch (error) {
+            console.error('[COPY] Erreur lors de l\'annulation de la copie:', error);
+            throw error;
+        }
+    });
+
+    // Gestionnaires de mapping
+    ipcMain.handle('save-mapping', async (event, mapping) => {
+        try {
+            const config = configManager.getConfig();
+            const mappings = config.mappings || [];
+            
+            if (mapping.id) {
+                // Mise à jour d'un mapping existant
+                const index = mappings.findIndex(m => m.id === mapping.id);
+                if (index !== -1) {
+                    mappings[index] = mapping;
+                }
+            } else {
+                // Nouveau mapping
+                mapping.id = Date.now().toString();
+                mappings.push(mapping);
+            }
+            
+            config.mappings = mappings;
+            await configManager.updateConfig(config);
+
+            // Notifier tous les renderers
+            BrowserWindow.getAllWindows().forEach(window => {
+                window.webContents.send('mappings-updated', mappings);
+            });
+
+            return { success: true, mapping };
+        } catch (error) {
+            console.error('[MAPPING] Erreur lors de la sauvegarde:', error);
             throw error;
         }
     });
 
     ipcMain.handle('update-mapping', async (event, mapping) => {
-        logger.console_log(LogTypes.INFO, 'Updating mapping:', mapping);
         try {
-            const index = currentConfig.mappings.findIndex(m => m.id === mapping.id);
+            const config = configManager.getConfig();
+            const mappings = config.mappings || [];
+            const index = mappings.findIndex(m => m.id === mapping.id);
+            
             if (index !== -1) {
-                currentConfig.mappings[index] = mapping;
-                await saveConfig(currentConfig);
-                return mapping;
+                mappings[index] = mapping;
+                config.mappings = mappings;
+                await configManager.updateConfig(config);
+
+                // Notifier tous les renderers
+                BrowserWindow.getAllWindows().forEach(window => {
+                    window.webContents.send('mappings-updated', mappings);
+                });
+
+                return { success: true, mapping };
             }
-            throw new Error('Mapping not found');
+            throw new Error('Mapping non trouvé');
         } catch (error) {
-            logger.console_log(LogTypes.ERROR, 'Error updating mapping:', error);
+            console.error('[MAPPING] Erreur lors de la mise à jour:', error);
             throw error;
         }
     });
 
     ipcMain.handle('delete-mapping', async (event, mappingId) => {
-        logger.console_log(LogTypes.INFO, 'Deleting mapping:', mappingId);
         try {
-            const index = currentConfig.mappings.findIndex(m => m.id === mappingId);
+            const config = configManager.getConfig();
+            const mappings = config.mappings || [];
+            const index = mappings.findIndex(m => m.id === mappingId);
+            
             if (index !== -1) {
-                currentConfig.mappings.splice(index, 1);
-                await saveConfig(currentConfig);
-                return true;
-            }
-            throw new Error('Mapping not found');
-        } catch (error) {
-            logger.console_log(LogTypes.ERROR, 'Error deleting mapping:', error);
-            throw error;
-        }
-    });
+                mappings.splice(index, 1);
+                config.mappings = mappings;
+                await configManager.updateConfig(config);
 
-    // Fonction de copie locale
-    async function copyLocalFiles(mapping, event) {
-        try {
-            const sourcePath = mapping.sourcePath;
-            const destPath = mapping.destPath;
-            
-            const { processMapping } = require('./src/fileProcessor');
-            await processMapping({
-                mapping,
-                onProgress: (progress) => {
-                    // Envoyer la progression au client
-                    event.sender.send('copy-progress', {
-                        status: progress.status,
-                        mapping: progress.mapping,
-                        current: progress.current,
-                        total: progress.total,
-                        file: progress.file,
-                        percentage: Math.round((progress.current / progress.total) * 100),
-                        transferred: progress.current,
-                        remainingTime: 0,  // À calculer si nécessaire
-                        speed: 0  // À calculer si nécessaire
-                    });
-                },
-                onComplete: (result) => {
-                    // Envoyer la fin de la copie au client
-                    event.sender.send('copy-progress', {
-                        status: 'completed',
-                        mapping: result.mapping,
-                        current: result.processed,
-                        total: result.total,
-                        percentage: 100,
-                        transferred: result.processed
-                    });
-                }
-            });
-            
-            return true;
-        } catch (error) {
-            logger.console_log(LogTypes.ERROR, 'Error copying files:', error);
-            // Envoyer l'erreur au client
-            event.sender.send('copy-progress', {
-                status: 'error',
-                error: error.message
-            });
-            throw error;
-        }
-    }
-
-    // Gestionnaire de l'événement start-copy
-    ipcMain.handle('start-copy', async (event, mappings = null) => {
-        logger.console_log(LogTypes.INFO, '🚀 Réception de la demande de copie', {
-            mappingsCount: mappings ? mappings.length : 'tous les mappings'
-        });
-
-        if (copyInProgress) {
-            logger.console_log(LogTypes.INFO, '⚠️ Une copie est déjà en cours');
-            throw new Error('Une copie est déjà en cours');
-        }
-
-        try {
-            copyInProgress = true;
-            cancelCopyRequested = false;
-
-            // Si aucun mapping n'est spécifié, utiliser tous les mappings
-            const mappingsToProcess = mappings || currentConfig.mappings;
-            logger.console_log(LogTypes.INFO, '📋 Mappings à traiter', {
-                count: mappingsToProcess.length,
-                mappings: mappingsToProcess.map(m => ({ title: m.title, id: m.id }))
-            });
-
-            // Envoyer l'événement de démarrage
-            event.sender.send('copy-progress', {
-                status: 'start',
-                total: mappingsToProcess.length
-            });
-
-            for (const mapping of mappingsToProcess) {
-                if (cancelCopyRequested) {
-                    logger.console_log(LogTypes.INFO, '❌ Copie annulée');
-                    event.sender.send('copy-progress', {
-                        status: 'error',
-                        error: 'Copie annulée par l\'utilisateur'
-                    });
-                    break;
-                }
-                logger.console_log(LogTypes.INFO, '📂 Démarrage de la copie pour le mapping', {
-                    title: mapping.title,
-                    sourcePath: mapping.sourcePath,
-                    destPath: mapping.destPath
+                // Notifier tous les renderers
+                BrowserWindow.getAllWindows().forEach(window => {
+                    window.webContents.send('mappings-updated', mappings);
                 });
-                await copyLocalFiles(mapping, event);
-                logger.console_log(LogTypes.INFO, '✅ Copie terminée pour le mapping', {
-                    title: mapping.title
-                });
+
+                return { success: true };
             }
-
-            // Envoyer l'événement de fin de copie
-            event.sender.send('copy-progress', {
-                status: 'finished'
-            });
-
-            return true;
+            throw new Error('Mapping non trouvé');
         } catch (error) {
-            logger.console_log(LogTypes.ERROR, '❌ Erreur pendant la copie:', error);
-            // Envoyer l'erreur au client
-            event.sender.send('copy-progress', {
-                status: 'error',
-                error: error.message
-            });
+            console.error('[MAPPING] Erreur lors de la suppression:', error);
             throw error;
-        } finally {
-            copyInProgress = false;
-            cancelCopyRequested = false;
-            // S'assurer que l'événement finished est envoyé même en cas d'erreur
-            event.sender.send('copy-progress', {
-                status: 'finished'
-            });
-            logger.console_log(LogTypes.INFO, '🏁 Processus de copie terminé');
         }
     });
 
-    // Gestionnaire pour annuler la copie
-    ipcMain.handle('cancel-copy', () => {
-        logger.console_log(LogTypes.INFO, '🛑 Cancel copy requested');
-        cancelCopyRequested = true;
-    });
-
-    // Gestion des dossiers
-    ipcMain.handle('select-folder', async () => {
-        const result = await dialog.showOpenDialog({
-            properties: ['openDirectory']
-        });
-        if (!result.canceled && result.filePaths.length > 0) {
-            return result.filePaths[0];
+    // Gestionnaires de navigation
+    ipcMain.handle('close-editor', () => {
+        if (mainWindow) {
+            mainWindow.webContents.send('editor-closed');
         }
-        return null;
+        return { success: true };
     });
 
-    // Gestion des erreurs
-    ipcMain.on('error', (event, error) => {
-        logger.console_log(LogTypes.ERROR, 'Error received:', error);
-        dialog.showErrorBox('Erreur', error.message || 'Une erreur est survenue');
+    ipcMain.handle('cancel-editing', () => {
+        if (mainWindow) {
+            mainWindow.webContents.send('editing-cancelled');
+        }
+        return { success: true };
     });
+
+    console.log('[IPC] Gestionnaires IPC configurés');
 }
 
 // Initialisation de l'application
 app.whenReady().then(async () => {
-    await loadConfig();
+    // Initialiser le gestionnaire de configuration
+    configManager = createConfigManager();
+    connectionManager = new ConnectionManager();
+    
+    const config = configManager.getConfig();
     setupIPC();
     createMainWindow();
     createServer();
